@@ -30,8 +30,12 @@ Dependencies
 Installation (with OPAM)
 ------------------------
 
+ocaml-vdom has not yet been pushed to the OPAM repository.  You can still use OPAM
+to install its current development version with:
 
-Not yet available.
+````
+opam pin add ocaml-vdom git://github.com/lexifi/ocaml-vdom.git
+````
 
 
 Manual installation
