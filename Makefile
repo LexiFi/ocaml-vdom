@@ -37,7 +37,7 @@ INSTALL = \
   vdom_blit.cmi vdom_blit.mli vdom_blit.cmti
 
 install:
-	ocamlfind install vdom $(INSTALL)
+	ocamlfind install ocaml-vdom $(INSTALL)
 
 uninstall:
-	ocamlfind remove vdom
+	ocamlfind remove ocaml-vdom
