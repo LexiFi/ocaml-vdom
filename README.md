@@ -149,7 +149,7 @@ use.  It is already used in production but it is still relatively new
 and no commitment is made on the stability of its interface.  So
 please let us know if you consider using it!
 
-This gen_js_api package is licensed by LexiFi under the terms of the
+This ocaml-vdom package is licensed by LexiFi under the terms of the
 [MIT license](LICENSE).
 
 Contact: alain.frisch@lexifi.com
