@@ -88,3 +88,68 @@ The implementation of this architecture relies on two modules:
     (rendering a VDOM tree to the DOM) and the "diff/synchronization"
     algorithm.  It also manages the state of a running application.
     `Vdom_blit` is implemented on top of `Js_browser`.
+
+
+
+This implementation of VDOM has some specificities:
+
+  - Each node in the VDOM tree has "key" string field.  By default, it
+    corresponds to the tag name for elements.  This field is used by
+    the synchronization algorithm as follow: when synchronizing the
+    old and new children of an element, the children are first grouped
+    by key.  Two children with different keys are never synchronized,
+    and the sequence of old and new children with a given key are
+    synchronized in a pairwise way (first old child with key K against
+    first new child with key K; etc...), adding or removing
+    extra/missing children if needed.  Children are also reordered in
+    the DOM, if needed, to match the new ordering.
+
+  - Event handlers are not attached on DOM nodes created when a VDOM
+    tree is rendered.  Instead, we attach fixed event handlers on the
+    root container, and rely on event delegation.  The handler
+    corresponding to a given element and responsible for a given kind
+    of event is searched directly in the VDOM.  The rationale for this
+    design choice is that comparing functional values is not
+    well-defined in OCaml, so it would not be clear, when the "old"
+    and "new" VDOMs are diffed, if the event handler on the DOM node
+    should be refreshed.
+
+  - A "bridge" structure in created in `Vdom_blit` to represent the
+    correspondence between VDOM and DOM nodes.  This structure mimics
+    the shape of both trees and avoids having to query the concrete
+    DOM to navigate in the tree.
+
+  - No data structure is created to represent the "diff" between old
+    and new VDOMs.  Instead, the synchronization algorithm detects
+    VDOM changes and apply them on the fly to the corresponding DOM
+    node.
+
+  - There is some special support for the "value" property.  When this
+    property is explicitly bound in the VDOM (typically on an input
+    field), the value is forced on the element: whenever the DOM value
+    change, the event is potentially dispatched to an event handler,
+    and the new VDOM property is forced on the DOM element.  In
+    particular, if the internal state is not updated by the event
+    handler, the field becomes in practice read-only.
+
+  - Some special VDOM node attributes are provided to present
+    "superficial state changes" that are not reflected in the proper
+    functional state (currently: giving focus to an element, or
+    ensuring an element is visible by y-scrolling its parent).  These
+    attributes produce the corresponding DOM action when they are
+    first put on an element (which is not completely well-defined,
+    since this depends on the synchronization algorithm).
+
+
+About
+-----
+
+This project has been created by LexiFi initially for its internal
+use.  It is already used in production but it is still relatively new
+and no commitment is made on the stability of its interface.  So
+please let us know if you consider using it!
+
+This gen_js_api package is licensed by LexiFi under the terms of the
+[MIT license](LICENSE).
+
+Contact: alain.frisch@lexifi.com
