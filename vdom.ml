@@ -1,0 +1,152 @@
+(***************************************************************************)
+(*  Copyright (C) 2000-2016 LexiFi SAS. All rights reserved.               *)
+(*                                                                         *)
+(*  No part of this document may be reproduced or transmitted in any       *)
+(*  form or for any purpose without the express permission of LexiFi SAS.  *)
+(***************************************************************************)
+
+
+module Cmd = struct
+  type 'msg t = ..
+
+  type 'msg t +=
+    | Batch of 'msg t list
+    | Map: ('a -> 'msg) * 'a t -> 'msg t
+
+  let batch l = Batch l
+  let map f x = Map (f, x)
+end
+
+module Custom = struct
+  type t = ..
+end
+
+type mouse_event = {x: int; y: int; buttons: int}
+
+type key_event = {which: int}
+
+type 'msg event_handler =
+  | Click of 'msg
+  | Focus of 'msg
+  | Blur of 'msg
+  | Input of (string -> 'msg)
+  | Change of (string -> 'msg)
+  | ChangeIndex of (int -> 'msg)
+  | MouseMove of (mouse_event -> 'msg)
+  | KeyDown of (key_event -> 'msg)
+
+type prop_val =
+  | String of string
+  | Int of int
+  | Float of float
+  | Bool of bool
+
+type 'msg attribute =
+  | Property of string * prop_val
+  | Style of string * string
+  | Handler of 'msg event_handler
+
+let onclick msg = Handler (Click msg)
+let onfocus msg = Handler (Focus msg)
+let oninput msg = Handler (Input msg)
+let onchange msg = Handler (Change msg)
+let onchange_index msg = Handler (ChangeIndex msg)
+let onblur msg = Handler (Blur msg)
+let onmousemove msg = Handler (MouseMove msg)
+let onkeydown msg = Handler (KeyDown msg)
+
+
+let str_prop k v = Property (k, String v)
+let int_prop k v = Property (k, Int v)
+let bool_prop k v = Property (k, Bool v)
+let float_prop k v = Property (k, Float v)
+let style k v = Style (k, v)
+let scroll_to_show = bool_prop "scroll-to-show" true
+let autofocus = bool_prop "autofocus" true
+
+let class_ x = Property ("className", String x)
+let type_ x = Property ("type", String x)
+let type_button = type_ "button"
+let value x = Property ("value", String x)
+let disabled x = Property ("disabled", Bool x)
+
+type 'msg vdom =
+  | Text of
+      {
+        key: string;
+        txt: string;
+      }
+  | Element of
+      {
+        key: string;
+        tag: string;
+        attributes: 'msg attribute list;
+        children: 'msg vdom list;
+      }
+  | Map:
+      {
+        key: string;
+        f: ('submsg -> 'msg);
+        child: 'submsg vdom;
+      } -> 'msg vdom
+  | Memo:
+      {
+        key: string;
+        f: ('a -> 'msg vdom);
+        arg: 'a;
+      } -> 'msg vdom
+  | Custom of
+      {
+        key: string;
+        elt: Custom.t;
+        attributes: 'msg attribute list;
+      }
+
+let text ?(key ="_txt") txt = Text {key; txt}
+
+type ('msg, 'res) elt_gen =
+  ?key:string ->
+  ?a:'msg attribute list ->
+  'res
+
+let elt tag ?key ?(a = []) l =
+  Element
+    {
+      key = (match key with None -> tag | Some k -> k);
+      tag;
+      children = l;
+      attributes = a;
+    }
+
+let div ?key ?a l = elt "div" ?key ?a l
+let input ?key ?a l = elt "input" ?key ?a l
+let txt_span ?key ?a s = elt "span" ?key ?a [text s]
+
+
+let map ?(key = "_map") f child = Map {key; f; child}
+let memo ?(key = "_memo") f arg = Memo {key; f; arg}
+let custom ?(key ="_custom") ?(a = []) elt = Custom {key; elt; attributes = a}
+
+let return ?(c = []) model = model, Cmd.batch c
+
+type ('model, 'msg) app =
+  {
+    init: ('model * 'msg Cmd.t);
+    update: ('model -> 'msg -> 'model * 'msg Cmd.t);
+    view: ('model -> 'msg vdom);
+  }
+
+let app ~init ~update ~view () =
+  {init; update; view}
+
+let simple_app ~init ~update ~view () =
+  app
+    ~init:(return init)
+    ~update:(fun model msg -> return (update model msg))
+    ~view
+    ()
+
+
+type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
+
+let input_event s = {ev = function Input f -> Some (f s) | _ -> None}

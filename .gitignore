@@ -1,0 +1,13 @@
+*.annot
+*.cmo
+*.cma
+*.cmi
+*.a
+*.o
+*.cmx
+*.cmxs
+*.cmxa
+*.exe
+*.cmt
+*.cmti
+demo.js

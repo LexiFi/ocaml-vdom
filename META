@@ -1,0 +1,4 @@
+version = "0.1"
+description = "DOM and VDOM for OCaml"
+archive(byte) = "vdom.cma"
+requires = "gen_js_api"
