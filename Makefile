@@ -1,3 +1,7 @@
+# This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.
+# See the attached LICENSE file.
+# Copyright 2016 by LexiFi.
+
 PACKAGES=-package gen_js_api
 OCAMLFLAGS=-w -40 -g -bin-annot
 
