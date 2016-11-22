@@ -68,7 +68,7 @@ current state of the UI is represented with a single data type and a
 "view" function projects this state to a concrete rendering.  In our
 case, this rendering is done to a tree-like abstraction of the browser
 DOM, called a VDOM (Virtual DOM).  This VDOM can itself be rendered to
-a concrete DOM.  Whenever the state change, the view function produces
+a concrete DOM.  Whenever the state changes, the view function produces
 a new VDOM tree, which is then diffed with the previous one to update
 the concrete DOM accordingly.  The VDOM also specifies how DOM events
 are wrapped into "messages" that are processed by an "update" function
@@ -78,10 +78,13 @@ to modify the current state.  This function can also spawn "commands"
 
 The implementation of this architecture relies on two modules:
 
-  - `Vdom` :  definition of the VDOM tree and of "virtual applications".
-    This is a "pure" module, which does not depend on any Javascript bindings.
+  - [`Vdom`](blob/master/vdom.mli) : definition of the VDOM tree and of "virtual
+    applications".  This is a "pure" module, which does not depend on
+    any Javascript bindings (it could be executed on the server-side,
+    e.g. for automated testing).
 
   - `Vdom_blit` : rendering of virtual applications into the actual
     DOM.  This modules implements the initial "blit" operation
     (rendering a VDOM tree to the DOM) and the "diff/synchronization"
     algorithm.  It also manages the state of a running application.
+    `Vdom_blit` is implemented on top of `Js_browser`.
