@@ -1,5 +1,5 @@
-vdom: Elm architecture and (V)DOM for OCaml
-===========================================
+ocaml-vdom: Elm architecture and (V)DOM for OCaml
+=================================================
 
 Overview
 --------
@@ -38,7 +38,7 @@ Manual installation
 -------------------
 
 ````
-git clone https://github.com/LexiFi/vdom.git
+git clone https://github.com/LexiFi/ocaml-vdom.git
 cd vdom
 make all
 make doc
