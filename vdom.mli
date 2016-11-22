@@ -6,7 +6,33 @@
 (***************************************************************************)
 
 
-(** {1 Definition of a Virtual DOM} *)
+(** {1 Virtual DOM} *)
+
+
+(** A "Virtual application" (or "Elm-like" application) is described by two types:
+
+    - model: the current state of the UI,
+
+    - msg ("messages"): possible state transitions;
+
+    and by the following values:
+
+    - init: the initial state of the application, plus some initial
+      commands to be spawned;
+
+    - view: a function mapping the current state to a "virtual" DOM
+      tree (vdom);
+
+    - update: a function that processes messages to update the
+      current state, and potentially spawns some commands.
+
+
+    Commands represents (typically) asynchronous operations, such as
+    querying a server, or waiting for some timer.
+
+    Messages can be generated either by a VDOM tree (to encapsulate
+    DOM events) or by commands (to notify their outcome).
+*)
 
 (** {2 Commands} *)
 
@@ -55,6 +81,9 @@ type 'msg attribute =
   | Style of string * string
   | Handler of 'msg event_handler
 
+
+(** {3 Event handlers} *)
+
 val onclick: 'msg -> 'msg attribute
 val onfocus: 'msg -> 'msg attribute
 val onblur: 'msg -> 'msg attribute
@@ -70,11 +99,32 @@ val onchange_index: (int -> 'msg) -> 'msg attribute
 val onmousemove:  (mouse_event -> 'msg) -> 'msg attribute
 val onkeydown: (key_event -> 'msg) -> 'msg attribute
 
+(** {3 Generic DOM properties} *)
+
+(** Generic DOM properties correspond to actual properties on DOM objects.
+    The name of these properties is usually the same as the corresponding HTML
+    attribute, but not always (e.g. "class" attribute, but "className" property). *)
+
 val str_prop: string -> string -> 'msg attribute
 val int_prop: string -> int -> 'msg attribute
 val bool_prop: string -> bool -> 'msg attribute
 val float_prop: string -> float -> 'msg attribute
+
 val style: string -> string -> 'msg attribute
+    (** A sub-field of the "style" DOM property. *)
+
+(** {3 Common DOM properties} *)
+
+val class_: string -> 'msg attribute
+val type_: string -> 'msg attribute
+val type_button: 'msg attribute
+val value: string -> 'msg attribute
+val disabled: bool -> 'msg attribute
+
+(** {3 Pseudo-attributes} *)
+
+(** Pseudo-attributes are interpreted in a special way
+    by the infrastructure. *)
 
 val scroll_to_show: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, its
@@ -85,13 +135,10 @@ val autofocus: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the
     element gets focused. *)
 
-(** {3 Common properties} *)
+(** {3 Events} *)
 
-val class_: string -> 'msg attribute
-val type_: string -> 'msg attribute
-val type_button: 'msg attribute
-val value: string -> 'msg attribute
-val disabled: bool -> 'msg attribute
+type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
+val input_event: string -> event
 
 (** {2 VDOM} *)
 
@@ -128,6 +175,8 @@ type 'msg vdom =
         attributes: 'msg attribute list;
       }
 
+(** {3 Generic VDOM constructors} *)
+
 type ('msg, 'res) elt_gen = ?key:string -> ?a:'msg attribute list ->  'res
 
 val elt: string -> ('msg, 'msg vdom list -> 'msg vdom) elt_gen
@@ -147,7 +196,6 @@ val memo: ?key:string -> ('a -> 'msg vdom) -> 'a -> 'msg vdom
 
     [TODO: n-ary versions].
 *)
-
 
 val custom: ?key:string -> ?a:'msg attribute list -> Custom.t -> 'msg vdom
 (** A custom kind of node.  Usually not used directly. *)
@@ -185,8 +233,4 @@ val simple_app:
   view:('model -> 'msg vdom) ->
   unit ->
   ('model, 'msg) app
-
-
-
-type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
-val input_event: string -> event
+(** A simple app does not trigger commands. *)

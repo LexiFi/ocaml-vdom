@@ -5,6 +5,8 @@
 (*  form or for any purpose without the express permission of LexiFi SAS.  *)
 (***************************************************************************)
 
+(** {1 Bindings for the DOM and other client-side Javascript APIs} *)
+
 
 module Storage : sig
   type t = private Ojs.t

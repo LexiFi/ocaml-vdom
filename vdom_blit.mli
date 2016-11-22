@@ -6,6 +6,9 @@
 (***************************************************************************)
 
 
+(** {1 Rendering "Virtual applications" to concrete ones} *)
+
+
 module Cmd: sig
   type 'msg ctx
   val send_msg: 'msg ctx -> 'msg -> unit

@@ -11,3 +11,6 @@
 *.cmt
 *.cmti
 demo.js
+doc/
+js_browser.ml
+*~
