@@ -43,7 +43,7 @@ Manual installation
 
 ````
 git clone https://github.com/LexiFi/ocaml-vdom.git
-cd vdom
+cd ocaml-vdom
 make all
 make doc
 make demo   # Optional, to build demo.js (loaded from demo.html)
