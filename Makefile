@@ -29,7 +29,7 @@ clean:
 doc:
 	rm -rf doc
 	mkdir doc
-	ocamlfind ocamldoc $(PACKAGES) -d doc -html js_browser.mli vdom.mli vdom_blit.mli
+	ocamlfind ocamldoc $(PACKAGES) -d doc -html -I lib lib/js_browser.mli lib/vdom.mli lib/vdom_blit.mli
 
 
 INSTALL = \

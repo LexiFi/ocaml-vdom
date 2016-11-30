@@ -54,7 +54,7 @@ make install
 DOM bindings
 ------------
 
-[`Js_browser`](js_browser.mli) expose (partial) OCaml bindings of the browser's DOM and
+[`Js_browser`](lib/js_browser.mli) expose (partial) OCaml bindings of the browser's DOM and
 other common client-side Javascript API.
 
 It is implemented with
@@ -82,12 +82,12 @@ to modify the current state.  This function can also spawn "commands"
 
 The implementation of this architecture relies on two modules:
 
-  - [`Vdom`](vdom.mli) : definition of the VDOM tree and of "virtual
+  - [`Vdom`](lib/vdom.mli) : definition of the VDOM tree and of "virtual
     applications".  This is a "pure" module, which does not depend on
     any Javascript bindings (it could be executed on the server-side,
     e.g. for automated testing).
 
-  - [`Vdom_blit`](vdom_blit.mli) : rendering of virtual applications into the actual
+  - [`Vdom_blit`](lib/vdom_blit.mli) : rendering of virtual applications into the actual
     DOM.  This modules implements the initial "blit" operation
     (rendering a VDOM tree to the DOM) and the "diff/synchronization"
     algorithm.  It also manages the state of a running application.
