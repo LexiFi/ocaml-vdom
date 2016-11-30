@@ -54,13 +54,15 @@ make install
 DOM bindings
 ------------
 
-[`Js_browser`](lib/js_browser.mli) expose (partial) OCaml bindings of the browser's DOM and
-other common client-side Javascript API.
+[`Js_browser`](lib/js_browser.mli) exposes (partial) OCaml bindings of the browser's DOM and
+other common client-side Javascript APIs.
 
 It is implemented with
 [gen_js_api](https://github.com/LexiFi/gen_js_api), making it
-realistic to write code portable between js_of_ocaml and Bucklescript
-in the future.
+realistic to have it working with Bucklescript in the future.  This
+would open the door to writing client-side web applications in OCaml
+that could be compiled to Javascript either with js_of_ocaml or
+Bucklescript.
 
 
 VDOM
@@ -97,16 +99,17 @@ The implementation of this architecture relies on two modules:
 
 This implementation of VDOM has some specificities:
 
-  - Each node in the VDOM tree has "key" string field.  By default, it
-    corresponds to the tag name for elements.  This field is used by
-    the synchronization algorithm as follow: when synchronizing the
-    old and new children of an element, the children are first grouped
-    by key.  Two children with different keys are never synchronized,
-    and the sequence of old and new children with a given key are
-    synchronized in a pairwise way (first old child with key K against
-    first new child with key K; etc...), adding or removing
-    extra/missing children if needed.  Children are also reordered in
-    the DOM, if needed, to match the new ordering.
+  - Each node in the VDOM tree has a "key" string field.  By default,
+    the key corresponds to the tag name for elements but it can be
+    overriden.  The key used by the synchronization algorithm
+    as follows: when synchronizing the old and new children of an
+    element, the children are first grouped by key.  Two children with
+    different keys are never synchronized, and the sequence of old and
+    new children with a given key are synchronized in a pairwise way
+    (first old child with key K against first new child with key K;
+    etc...), adding or removing extra/missing children if needed.
+    Children are also reordered in the DOM, if needed, to match the
+    new ordering.
 
   - Event handlers are not attached on DOM nodes created when a VDOM
     tree is rendered.  Instead, we attach fixed event handlers on the
@@ -131,7 +134,7 @@ This implementation of VDOM has some specificities:
   - There is some special support for the "value" property.  When this
     property is explicitly bound in the VDOM (typically on an input
     field), the value is forced on the element: whenever the DOM value
-    change, the event is potentially dispatched to an event handler,
+    changes, the event is potentially dispatched to an event handler,
     and the new VDOM property is forced on the DOM element.  In
     particular, if the internal state is not updated by the event
     handler, the field becomes in practice read-only.
