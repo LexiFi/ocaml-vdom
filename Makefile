@@ -8,20 +8,23 @@ OCAMLFLAGS=-w -40 -g -bin-annot
 .PHONY: all demo clean doc install uninstall
 
 all:
-	ocamlfind gen_js_api/gen_js_api js_browser.mli
-	ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -c \
+	ocamlfind gen_js_api/gen_js_api lib/js_browser.mli
+	cd lib && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -c \
 	    js_browser.mli js_browser.ml \
             vdom.mli vdom.ml \
             vdom_blit.mli vdom_blit.ml
-	ocamlfind ocamlc -a -o vdom.cma js_browser.cmo vdom.cmo vdom_blit.cmo
+
+	cd lib && ocamlfind ocamlc -a -o vdom.cma js_browser.cmo vdom.cmo vdom_blit.cmo
 
 demo:
-	ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -no-check-prims -linkpkg -o demo.exe vdom.cma demo.ml
-	js_of_ocaml +gen_js_api/ojs_runtime.js -o demo.js demo.exe
+	cd examples && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -I ../lib -no-check-prims -linkpkg -o demo.exe vdom.cma vdom_ui.mli vdom_ui.ml demo.ml
+	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o demo.js demo.exe
 
 
 clean:
-	rm -rf *~ *.cm* js_browser.ml demo.exe demo.js doc
+	cd lib && rm -f rm -rf *~ *.cm* js_browser.ml
+	cd examples && rm -f rm -rf *~ *.cm* demo.exe
+	rm -rf doc
 
 doc:
 	rm -rf doc

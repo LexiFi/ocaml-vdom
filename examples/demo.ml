@@ -282,6 +282,34 @@ module Talk2 = struct
 end
 
 
+module DemoSelection = struct
+
+  open Vdom_ui
+
+  type model =
+    {
+      s: string;
+      select: int SelectionList.model;
+    }
+
+  let init =
+    let rec gen = function 100 -> [] | i -> i :: gen (i + 1) in
+    { s = ""; select = SelectionList.init (gen 0) }
+
+  let view {s; select} =
+    elt "div"
+      [
+        text s;
+        SelectionList.view string_of_int (fun x -> `Internal x) (fun x -> `Select x) select;
+      ]
+
+  let update state = function
+    | `Internal x -> {state with select = SelectionList.update state.select x}
+    | `Select x -> {state with s = Printf.sprintf "Selection : %i" x}
+
+  let app = simple_app ~init ~update ~view ()
+end
+
 (* Custom command handlers *)
 
 let run_http_get ~url ~payload ~on_success () =
@@ -325,6 +353,7 @@ let run () =
   r Demo3.app;
   r (Pair.app DemoHttp.app Demo3.app);
   r MouseMove.app;
+  r DemoSelection.app;
   ()
 
 let () = Window.set_onload window run
