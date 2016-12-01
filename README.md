@@ -154,7 +154,6 @@ Usage
 A simple one-module application would look like:
 
 ````ocaml
-open Js_browser
 open Vdom
 
 (* Definition of the vdom application *)
@@ -167,6 +166,8 @@ let app = {init; update; view}
 
 
 (* Driver *)
+
+open Js_browser
 
 let run () =
   Vdom_blit.run app   (* run the application *)
