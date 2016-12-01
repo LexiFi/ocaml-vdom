@@ -101,7 +101,7 @@ This implementation of VDOM has some specificities:
 
   - Each node in the VDOM tree has a "key" string field.  By default,
     the key corresponds to the tag name for elements but it can be
-    overriden.  The key used by the synchronization algorithm
+    overriden.  The key is used by the synchronization algorithm
     as follows: when synchronizing the old and new children of an
     element, the children are first grouped by key.  Two children with
     different keys are never synchronized, and the sequence of old and
@@ -182,7 +182,7 @@ Compiling this to Javascript:
     ocamlfind ocamlc -package ocaml-vdom -no-check-prims -linkpkg -o myprog.exe myprog.ml
     js_of_ocaml +gen_js_api/ojs_runtime.js -o myprog.js myprog.exe
 
-The Javascript code then be used from a simple HTML file such as:
+The Javascript code can then be used from a simple HTML file such as:
 
 ````html
 <html>
