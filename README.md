@@ -186,7 +186,7 @@ The Javascript code then be used from a simple HTML file such as:
 ````html
 <html>
   <head>
-    <script src="demo.js"></script>
+    <script src="myprog.js"></script>
   </head>
   <body>
   </body>
