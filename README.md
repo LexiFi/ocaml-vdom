@@ -148,6 +148,52 @@ This implementation of VDOM has some specificities:
     since this depends on the synchronization algorithm).
 
 
+Usage
+-----
+
+A simple one-module application would look like:
+
+````ocaml
+open Js_browser
+open Vdom
+
+(* Definition of the vdom application *)
+
+type model = .... (* the state of the application *)
+let view model =  ...  (* the state->vdom rendering function *)
+let init = return ... (* the initial state *)
+let update model = function .... (* the state-updating function *)
+let app = {init; update; view}
+
+
+(* Driver *)
+
+let run () =
+  Vdom_blit.run app   (* run the application *)
+  |> Vdom_blit.dom    (* get its root DOM container *)
+  |> Element.append_child (Document.body document)   (* insert the DOM in the document *)
+
+let () = Window.set_onload window run
+````
+
+Compiling this to Javascript:
+
+    ocamlfind ocamlc -package ocaml-vdom -no-check-prims -linkpkg -o myprog.exe myprog.ml
+    js_of_ocaml +gen_js_api/ojs_runtime.js -o myprog.js myprog.exe
+
+The Javascript code then be used from a simple HTML file such as:
+
+````html
+<html>
+  <head>
+    <script src="demo.js"></script>
+  </head>
+  <body>
+  </body>
+</html>
+````
+
+
 About
 -----
 
