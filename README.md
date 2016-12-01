@@ -162,7 +162,7 @@ type model = .... (* the state of the application *)
 let view model =  ...  (* the state->vdom rendering function *)
 let init = return ... (* the initial state *)
 let update model = function .... (* the state-updating function *)
-let app = {init; update; view}
+let my_app = app ~init ~update ~view ()
 
 
 (* Driver *)
@@ -170,7 +170,7 @@ let app = {init; update; view}
 open Js_browser
 
 let run () =
-  Vdom_blit.run app   (* run the application *)
+  Vdom_blit.run my_app   (* run the application *)
   |> Vdom_blit.dom    (* get its root DOM container *)
   |> Element.append_child (Document.body document)   (* insert the DOM in the document *)
 
