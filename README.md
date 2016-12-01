@@ -193,6 +193,7 @@ The Javascript code then be used from a simple HTML file such as:
 </html>
 ````
 
+Examples can be found in the [`Demo` module](examples/demo.ml).
 
 About
 -----
