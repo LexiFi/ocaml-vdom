@@ -10,7 +10,8 @@
 *.exe
 *.cmt
 *.cmti
-demo.js
+examples/demo.js
+examples/counters.js
 doc/
 js_browser.ml
 *~

@@ -19,6 +19,8 @@ all:
 demo:
 	cd examples && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -I ../lib -no-check-prims -linkpkg -o demo.exe vdom.cma vdom_ui.mli vdom_ui.ml demo.ml
 	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o demo.js demo.exe
+	cd examples && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -I ../lib -no-check-prims -linkpkg -o counters.exe vdom.cma counters.ml
+	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o counters.js counters.exe
 
 
 clean:
