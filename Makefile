@@ -36,10 +36,10 @@ doc:
 
 INSTALL = \
   META \
-  vdom.cma \
-  vdom.cmi vdom.mli vdom.cmti \
-  js_browser.cmi js_browser.mli js_browser.cmti \
-  vdom_blit.cmi vdom_blit.mli vdom_blit.cmti
+  lib/vdom.cma \
+  lib/vdom.cmi lib/vdom.mli lib/vdom.cmti \
+  lib/js_browser.cmi lib/js_browser.mli lib/js_browser.cmti \
+  lib/vdom_blit.cmi lib/vdom_blit.mli lib/vdom_blit.cmti
 
 install:
 	ocamlfind install ocaml-vdom $(INSTALL)
