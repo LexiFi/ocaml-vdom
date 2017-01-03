@@ -78,6 +78,9 @@ type 'msg attribute =
   | Property of string * prop_val
   | Style of string * string
   | Handler of 'msg event_handler
+  | Attribute of string * string (* use a prop_val to avoid
+                                    casting number to strings
+                                    when producing the vdom? *)
 
 
 (** {3 Event handlers} *)
@@ -110,6 +113,10 @@ val float_prop: string -> float -> 'msg attribute
 
 val style: string -> string -> 'msg attribute
     (** A sub-field of the "style" DOM property. *)
+
+val attr: string -> string -> 'mg attribute
+val int_attr: string -> int -> 'msg attribute
+val float_attr: string -> float -> 'msg attribute
 
 (** {3 Common DOM properties} *)
 
@@ -150,6 +157,7 @@ type 'msg vdom =
   | Element of
       {
         key: string;
+        ns: string;
         tag: string;
         attributes: 'msg attribute list;
         children: 'msg vdom list;
@@ -177,8 +185,11 @@ type 'msg vdom =
 
 type ('msg, 'res) elt_gen = ?key:string -> ?a:'msg attribute list ->  'res
 
-val elt: string -> ('msg, 'msg vdom list -> 'msg vdom) elt_gen
-(** A generic HTML element. *)
+val elt: ?ns:string -> string -> ('msg, 'msg vdom list -> 'msg vdom) elt_gen
+(** A generic element. *)
+
+val svg_elt: string -> ('msg, 'msg vdom list -> 'msg vdom) elt_gen
+(** A generic element in the SVG namespace. *)
 
 val text: ?key:string -> string -> 'msg vdom
 (** A text node. *)

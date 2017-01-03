@@ -42,6 +42,7 @@ type 'msg attribute =
   | Property of string * prop_val
   | Style of string * string
   | Handler of 'msg event_handler
+  | Attribute of string * string
 
 let onclick msg = Handler (Click msg)
 let onfocus msg = Handler (Focus msg)
@@ -58,6 +59,9 @@ let int_prop k v = Property (k, Int v)
 let bool_prop k v = Property (k, Bool v)
 let float_prop k v = Property (k, Float v)
 let style k v = Style (k, v)
+let attr k v = Attribute (k, v)
+let int_attr k v = Attribute (k, string_of_int v)
+let float_attr k v = Attribute (k, string_of_float v)
 let scroll_to_show = bool_prop "scroll-to-show" true
 let autofocus = bool_prop "autofocus" true
 
@@ -76,6 +80,7 @@ type 'msg vdom =
   | Element of
       {
         key: string;
+        ns: string;
         tag: string;
         attributes: 'msg attribute list;
         children: 'msg vdom list;
@@ -106,14 +111,18 @@ type ('msg, 'res) elt_gen =
   ?a:'msg attribute list ->
   'res
 
-let elt tag ?key ?(a = []) l =
+let elt ?(ns = "") tag ?key ?(a = []) l =
   Element
     {
       key = (match key with None -> tag | Some k -> k);
+      ns;
       tag;
       children = l;
       attributes = a;
     }
+
+let svg_ns = "http://www.w3.org/2000/svg"
+let svg_elt tag ?key ?a l = elt ~ns:svg_ns tag ?key ?a l
 
 let div ?key ?a l = elt "div" ?key ?a l
 let input ?key ?a l = elt "input" ?key ?a l

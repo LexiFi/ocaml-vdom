@@ -21,6 +21,8 @@ demo:
 	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o demo.js demo.exe
 	cd examples && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -I ../lib -no-check-prims -linkpkg -o counters.exe vdom.cma counters.ml
 	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o counters.js counters.exe
+	cd examples && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -I ../lib -no-check-prims -linkpkg -o svg.exe vdom.cma svg.ml
+	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o svg.js svg.exe
 
 
 clean:

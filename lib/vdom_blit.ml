@@ -165,6 +165,9 @@ let apply_attributes dom attributes =
             k
             (Ojs.string_to_js v)
 
+      | Attribute (k, v) ->
+          Element.set_attribute dom k v
+
       | _ -> ()
     )
     attributes
@@ -192,16 +195,19 @@ let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
       apply_attributes elt.dom attributes;
       BCustom {vdom; elt}
 
-  | Element {tag; children; attributes; key = _} ->
+  | Element {ns; tag; children; attributes; key = _} ->
       if debug then Printf.printf "create <%s>\n%!" tag;
-      let dom = Document.create_element document tag in
+      let dom =
+        if ns = "" then Document.create_element document tag
+        else Document.create_element_ns document ns tag
+      in
       let children = List.map (blit ctx) children in
       List.iter (fun c -> Element.append_child dom (get_dom c)) children;
       apply_attributes dom attributes;
       BElement {vdom; dom; children}
 
 
-let sync_props set clear l1 l2 =
+let sync_props same set clear l1 l2 =
   let sort = List.sort (fun (k1, _) (k2, _) -> compare (k1:string) k2) in
   let l1 = sort l1 and l2 = sort l2 in
   let rec loop l1 l2 =
@@ -216,17 +222,17 @@ let sync_props set clear l1 l2 =
         loop tl1 []
 
     | (k1, _) :: _, (k2, v2) :: tl2 when k2 < k1 ->
-        set k2 (eval_prop v2);
+        set k2 v2;
         loop l1 tl2
     | [], (k2, v2) :: tl2 ->
-        set k2 (eval_prop v2);
+        set k2 v2;
         loop [] tl2
 
     | (_k1, v1) :: tl1, (k2, v2) :: tl2 ->
         (* k1 = k2 *)
-        if not (same_prop v1 v2) then begin
+        if not (same v1 v2) then begin
           if debug then Printf.printf "Property %s changed\n%!" k2;
-          set k2 (eval_prop v2);
+          set k2 v2;
         end;
         loop tl1 tl2
   in
@@ -241,24 +247,35 @@ let rec choose f = function
       | Some x -> x :: choose f tl
 
 let sync_attributes dom a1 a2 =
-  let props = function Property (k, v) -> Some (k, v) | Style _ | Handler _ -> None in
+  let props = function Property (k, v) -> Some (k, v) | Style _ | Handler _ | Attribute _ -> None in
   let set k v =
     if not (custom_attribute dom k) then
-      Ojs.set (Element.t_to_js dom) k v
+      Ojs.set (Element.t_to_js dom) k (eval_prop v)
   in
   let clear k = Ojs.set (Element.t_to_js dom) k Ojs.null in
   sync_props
+    same_prop
     set clear
     (choose props a1)
     (choose props a2);
 
-  let styles = function Style (k, v) -> Some (k, String v) | Property _ | Handler _ -> None in
-  let set k v = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k v in
+  let styles = function Style (k, v) -> Some (k, String v) | Property _ | Handler _ | Attribute _ -> None in
+  let set k v = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k (eval_prop v) in
   let clear k = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k Ojs.null in
   sync_props
+    same_prop
     set clear
     (choose styles a1)
-    (choose styles a2)
+    (choose styles a2);
+
+  let attrs = function Attribute (k, v) -> Some (k, v) | Style _ | Property _ | Handler _ -> None in
+  let set k v = Element.set_attribute dom k v in
+  let clear k = Element.remove_attribute dom k in
+  sync_props
+    (fun (s1: string) s2 -> s1 = s2)
+    set clear
+    (choose attrs a1)
+    (choose attrs a2)
 
 let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom -> msg ctrl =
   fun ctx parent old vdom ->
@@ -287,7 +304,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       sync_attributes elt.dom a1 a2;
       BCustom {vdom; elt}
 
-  | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag ->
+  | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns ->
 
       (* TODO:
          - add a fast-path to deal with prefixes and suffixes of old/new children with identical
