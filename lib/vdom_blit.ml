@@ -513,6 +513,7 @@ let run (type msg) (type model) ?(env = empty)
             | "change", Handler (Change f) :: _-> Some (f (Element.value tgt))
             | "change", Handler (ChangeIndex f) :: _-> Some (f (Element.selected_index tgt))
             | "click", Handler (Click msg) :: _ -> Some msg
+            | "dblclick", Handler (DblClick msg) :: _ -> Some msg
             | "blur", Handler (Blur msg) :: _-> Some msg
             | "focus", Handler (Focus msg) :: _ -> Some msg
             | "mousemove", Handler (MouseMove f) :: _ -> Some (f (mouse_event evt))
@@ -564,6 +565,7 @@ let run (type msg) (type model) ?(env = empty)
   in
   process_custom_fwd := process_custom;
   Element.add_event_listener container "click" onevent false;
+  Element.add_event_listener container "dblclick" onevent false;
   Element.add_event_listener container "input" onevent false;
   Element.add_event_listener container "change" onevent false;
   Element.add_event_listener container "focus" onevent true;

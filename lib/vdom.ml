@@ -24,6 +24,7 @@ type key_event = {which: int}
 
 type 'msg event_handler =
   | Click of 'msg
+  | DblClick of 'msg
   | Focus of 'msg
   | Blur of 'msg
   | Input of (string -> 'msg)
@@ -45,6 +46,7 @@ type 'msg attribute =
   | Attribute of string * string
 
 let onclick msg = Handler (Click msg)
+let ondblclick msg = Handler (DblClick msg)
 let onfocus msg = Handler (Focus msg)
 let oninput msg = Handler (Input msg)
 let onchange msg = Handler (Change msg)
