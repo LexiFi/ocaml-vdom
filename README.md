@@ -196,6 +196,13 @@ The Javascript code can then be used from a simple HTML file such as:
 
 Examples: [`Demo`](examples/demo.ml), [`Counters`](examples/counters.ml)
 
+Third-party examples:
+  `TodoMVC`
+    ([source](https://github.com/slegrand45/examples_ocaml_vdom/blob/master/todomvc/todomvc.ml),
+     [demo](https://slegrand45.github.io/examples_ocaml_vdom.site/todomvc/)),
+  [`With Eliom service`](https://github.com/slegrand45/examples_ocsigen/blob/master/eliom/with-ocaml-vdom/simple/mixvdomandeliom.eliom)
+
+
 About
 -----
 
