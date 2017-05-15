@@ -214,6 +214,40 @@ module History : sig
   val push_state: t -> Ojs.t -> string -> string -> unit
 end
 
+module Location: sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val get_hash: unit -> string [@@js.get "location.hash"]
+  val set_hash: string -> unit [@@js.set "location.hash"]
+
+  val host: t -> string
+  val set_host: t -> string -> unit
+
+  val hostname: t -> string
+  val set_hostname: t -> string -> unit
+
+  val href: unit -> string [@@js.get "location.href"]
+  val set_href: string -> unit [@@js.set "location.href"]
+
+  val pathname: t -> string
+  val set_pathname: t -> string -> unit
+
+  val port: t -> string
+  val set_port: t -> string -> unit
+
+  val protocol: t -> string
+  val set_protocol: t -> string -> unit
+
+  val search: t -> string
+  val set_search: t -> string -> unit
+
+  val assign: t -> string -> unit [@@js.call]
+  val reload: t -> ?force:bool -> unit -> unit
+  val replace: t -> string -> unit [@@js.call]
+end
+
 module Window: sig
   type t
   val t_of_js: Ojs.t -> t
@@ -242,6 +276,7 @@ module Window: sig
   val scroll_by: t -> int -> int -> unit
   val scroll_to: t -> int -> int -> unit
   val history: t -> History.t
+  val location : t -> Location.t
 end
 
 module IFrame: sig
@@ -369,40 +404,6 @@ module Console : sig
   val log: t -> Ojs.t -> unit
 end
 val console: Console.t
-
-module Location: sig
-  type t
-  val t_of_js: Ojs.t -> t
-  val t_to_js: t -> Ojs.t
-
-  val get_hash: unit -> string [@@js.get "location.hash"]
-  val set_hash: string -> unit [@@js.set "location.hash"]
-
-  val host: t -> string
-  val set_host: t -> string -> unit
-
-  val hostname: t -> string
-  val set_hostname: t -> string -> unit
-
-  val href: unit -> string [@@js.get "location.href"]
-  val set_href: string -> unit [@@js.set "location.href"]
-
-  val pathname: t -> string
-  val set_pathname: t -> string -> unit
-
-  val port: t -> string
-  val set_port: t -> string -> unit
-
-  val protocol: t -> string
-  val set_protocol: t -> string -> unit
-
-  val search: t -> string
-  val set_search: t -> string -> unit
-
-  val assign: t -> string -> unit [@@js.call]
-  val reload: t -> ?force:bool -> unit -> unit
-  val replace: t -> string -> unit [@@js.call]
-end
 
 module Svg : sig
   module Length : sig
