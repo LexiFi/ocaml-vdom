@@ -12,6 +12,7 @@
 *.cmti
 examples/demo.js
 examples/counters.js
+examples/svg.js
 doc/
 js_browser.ml
 *~
