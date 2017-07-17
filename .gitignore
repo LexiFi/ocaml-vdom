@@ -13,6 +13,7 @@
 examples/demo.js
 examples/counters.js
 examples/svg.js
+examples/date.js
 doc/
 js_browser.ml
 *~
