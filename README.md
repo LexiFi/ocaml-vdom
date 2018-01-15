@@ -147,6 +147,15 @@ This implementation of VDOM has some specificities:
     first put on an element (which is not completely well-defined,
     since this depends on the synchronization algorithm).
 
+  - The "view" function is **not** applied synchronously when the
+    state ("model") changes.  Instead, a rendering (applying the
+    "view" function and updating the actual DOM accordingly) is
+    scheduled.  This means that multiple changes can be grouped
+    without triggering a redraw.  The current strategy is to delay
+    redrawing with [window.requestAnimationFrame](https://developer.mozilla.org/fr/docs/Web/API/Window/requestAnimationFrame), which is supposed to be available (natively,
+    or through a polyfill).
+
+
 
 Usage
 -----
