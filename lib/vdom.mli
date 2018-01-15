@@ -205,6 +205,12 @@ val memo: ?key:string -> ('a -> 'msg vdom) -> 'a -> 'msg vdom
     or its argument have changed (physically) from the previous
     synchronization.
 
+    Note that physical equality is used both for the function and its
+    argument.  In particular, this is unlikely to behave as expected
+    if the function is defined inline (as an abstraction) or obtained
+    by a (partial) function application.  Instead, the functional
+    argument should be a simple reference to a globally defined function.
+
     [TODO: n-ary versions].
 *)
 
