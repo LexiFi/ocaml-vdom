@@ -489,13 +489,22 @@ let run (type msg) (type model) ?(env = empty)
   let current = ref x in
 
 
+  let pending_redraw = ref false in
+  let redraw _ =
+    pending_redraw := false;
+    let new_vdom = view !model in
+    let x = sync ctx container !current new_vdom in
+    current := x
+  in
+
   let rec process msg =
     let (new_model : model), (cmd : msg Vdom.Cmd.t) = update !model msg in
     model := new_model;
-    let new_vdom = view new_model in
-    let x = sync ctx container !current new_vdom in
-    current := x;
-    Cmd.run env.cmds process cmd
+    Cmd.run env.cmds process cmd;
+    if not !pending_redraw then begin
+      pending_redraw := true;
+      Window.request_animation_frame window redraw
+    end
   in
 
   Element.append_child container (get_dom x);
