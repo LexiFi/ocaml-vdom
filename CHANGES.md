@@ -1,5 +1,10 @@
-Before first public release
-===========================
+Next release
+============
+
+- GPR#14: delay rendering (view + DOM updates) with requestAnimationFrame
+
+0.1
+===
 
  - GPR#5: double click handler (contributed by Stéphane Legrand)
  - GPR#10: bindings for Date (contributed by Philippe Veber)
