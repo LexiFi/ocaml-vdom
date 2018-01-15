@@ -23,7 +23,7 @@ let view n =
         [
           svg_elt "circle" []
             ~a:[
-              onclick `Click;
+              onclick (fun _ -> `Click);
               int_attr "cx" (n * 10);
               int_attr "cy" (n * 10);
               int_attr "r" (n * 10);

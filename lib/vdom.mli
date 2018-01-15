@@ -59,8 +59,8 @@ type mouse_event = {x: int; y: int; buttons: int}
 type key_event = {which: int}
 
 type 'msg event_handler =
-  | Click of 'msg
-  | DblClick of 'msg
+  | Click of (mouse_event -> 'msg)
+  | DblClick of (mouse_event -> 'msg)
   | Focus of 'msg
   | Blur of 'msg
   | Input of (string -> 'msg)
@@ -87,8 +87,8 @@ type 'msg attribute =
 
 (** {3 Event handlers} *)
 
-val onclick: 'msg -> 'msg attribute
-val ondblclick: 'msg -> 'msg attribute
+val onclick: (mouse_event -> 'msg) -> 'msg attribute
+val ondblclick: (mouse_event -> 'msg) -> 'msg attribute
 val onfocus: 'msg -> 'msg attribute
 val onblur: 'msg -> 'msg attribute
 val oninput: (string -> 'msg) -> 'msg attribute

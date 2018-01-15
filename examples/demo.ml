@@ -15,7 +15,7 @@ let http_get ~url ~payload on_success = Http_get {url; payload; on_success}
 let after x f = After (x, f)
 
 
-let button ?(a = []) txt f = input [] ~a:(onclick f :: type_button :: value txt :: a)
+let button ?(a = []) txt f = input [] ~a:(onclick (fun _ -> f) :: type_button :: value txt :: a)
 let br = elt "br" []
 
 
@@ -245,7 +245,7 @@ module Talk1 = struct
 
   let button txt msg =
     elt "input" []
-      ~a:[onclick msg; str_prop "type" "button";
+      ~a:[onclick (fun _ -> msg); str_prop "type" "button";
           str_prop "value" txt;
          ]
 

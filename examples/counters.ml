@@ -18,7 +18,7 @@ let update { counters } = function
 
 let init = { counters = IntMap.empty }
 
-let button txt msg = input [] ~a:[onclick msg; type_button; value txt]
+let button txt msg = input [] ~a:[onclick (fun _ -> msg); type_button; value txt]
 
 let view { counters } =
   let row (pos, value) =

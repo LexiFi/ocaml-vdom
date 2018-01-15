@@ -531,8 +531,8 @@ let run (type msg) (type model) ?(env = empty)
             | "change", Handler (Change f) :: _-> Some (f (Element.value tgt))
             | "change", Handler (ChangeIndex f) :: _-> Some (f (Element.selected_index tgt))
             | "change", Handler (ChangeChecked f) :: _-> Some (f (Element.checked tgt))
-            | "click", Handler (Click msg) :: _ -> Some msg
-            | "dblclick", Handler (DblClick msg) :: _ -> Some msg
+            | "click", Handler (Click f) :: _ -> Some (f (mouse_event evt))
+            | "dblclick", Handler (DblClick f) :: _ -> Some (f (mouse_event evt))
             | "blur", Handler (Blur msg) :: _-> Some msg
             | "focus", Handler (Focus msg) :: _ -> Some msg
             | "mousemove", Handler (MouseMove f) :: _ -> Some (f (mouse_event evt))
