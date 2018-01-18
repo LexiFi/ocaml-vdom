@@ -205,6 +205,7 @@ module Element : sig
   val files: t (* <input> *) -> File.t list
 
   val selected_index: t (* <select> *) -> int
+  val checked: t (* <input> *) -> bool
 
   val node_value: t (* T *) -> string
   val set_node_value: t (* T *) -> string -> unit
