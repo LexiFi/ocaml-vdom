@@ -324,17 +324,17 @@ module DemoCheckbox = struct
         elt "input" []
           ~a:[str_prop "type" "checkbox";
               bool_prop "checked" checked;
-              onclick `Click1;
+              onclick (fun _ -> `Click1);
              ];
         elt "input" []
           ~a:[str_prop "type" "checkbox";
               bool_prop "checked" checked;
-              onclick `Click1;
+              onclick (fun _ -> `Click1);
              ];
         elt "input" []
           ~a:[str_prop "type" "checkbox";
               bool_prop "checked" (not checked);
-              onclick `Click1;
+              onclick (fun _ -> `Click1);
              ];
         elt "input" []
           ~a:[str_prop "type" "checkbox";
