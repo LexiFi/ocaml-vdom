@@ -35,7 +35,7 @@ module SelectionList = struct
                [style "background-color" "#E0E0E0";
                 scroll_to_show] else [] in
            div
-             ~a:(onclick (select x) :: class_ "link" :: a)
+             ~a:(onclick (fun _ -> select x) :: class_ "link" :: a)
              [ text (show x) ]
         )
         instrs

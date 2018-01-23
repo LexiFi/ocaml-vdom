@@ -23,8 +23,8 @@ type mouse_event = {x: int; y: int; buttons: int}
 type key_event = {which: int}
 
 type 'msg event_handler =
-  | Click of 'msg
-  | DblClick of 'msg
+  | Click of (mouse_event -> 'msg)
+  | DblClick of (mouse_event -> 'msg)
   | Focus of 'msg
   | Blur of 'msg
   | Input of (string -> 'msg)

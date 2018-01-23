@@ -19,7 +19,7 @@ let view n =
       div [text (Printf.sprintf "Number of milliseconds: %f" n)];
       div [text (Printf.sprintf "ToDateString: %s" (Js_browser.Date.to_date_string t))];
       div [text (Printf.sprintf "ToLocaleString: %s" (Js_browser.Date.to_locale_string t))];
-      div [input [] ~a:[onclick `Click; type_button; value "Update"]]
+      div [input [] ~a:[onclick (fun _ -> `Click); type_button; value "Update"]]
     ]
 
 let app = simple_app ~init ~view ~update ()
