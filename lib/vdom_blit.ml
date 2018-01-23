@@ -490,11 +490,20 @@ let run (type msg) (type model) ?(env = empty)
 
 
   let pending_redraw = ref false in
+  let post_redraw = ref [] in
+  let after_redraw f = post_redraw := f :: !post_redraw in
   let redraw _ =
+    (* TODO:
+       could avoid calling view/sync if model is the same as the previous one
+       (because updates are now batched
+    *)
     pending_redraw := false;
     let new_vdom = view !model in
     let x = sync ctx container !current new_vdom in
-    current := x
+    current := x;
+    let l = List.rev !post_redraw  in
+    post_redraw := [];
+    List.iter (fun f -> f ()) l
   in
 
   let rec process msg =
@@ -521,6 +530,7 @@ let run (type msg) (type model) ?(env = empty)
             | "input", Handler (Input f) :: _-> Some (f (Element.value tgt))
             | "change", Handler (Change f) :: _-> Some (f (Element.value tgt))
             | "change", Handler (ChangeIndex f) :: _-> Some (f (Element.selected_index tgt))
+            | "change", Handler (ChangeChecked f) :: _-> Some (f (Element.checked tgt))
             | "click", Handler (Click msg) :: _ -> Some msg
             | "dblclick", Handler (DblClick msg) :: _ -> Some msg
             | "blur", Handler (Blur msg) :: _-> Some msg
@@ -537,20 +547,24 @@ let run (type msg) (type model) ?(env = empty)
       | _ ->
           ()
       end;
-      if ty = "input" then
-        begin match vdom_of_dom !current tgt with
-        (* note: the new vdom can be different after processing
-           the event above *)
-        | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}} ->
-            List.iter
-              (function
-                | Property ("value", String s2) ->
-                    Ojs.set (Element.t_to_js tgt) "value" (Ojs.string_to_js s2)
-                | _ -> ()
-              )
-              attributes
-        | _ -> ()
-        end
+      if ty = "input" || ty = "change" then
+        let f () =
+          match vdom_of_dom !current tgt with
+          (* note: the new vdom can be different after processing
+             the event above *)
+          | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}} ->
+              List.iter
+                (function
+                  | Property ("value", String s2) ->
+                      Ojs.set (Element.t_to_js tgt) "value" (Ojs.string_to_js s2)
+                  | Property ("checked", Bool s2) ->
+                      Ojs.set (Element.t_to_js tgt) "checked" (Ojs.bool_to_js s2)
+                  | _ -> ()
+                )
+                attributes
+          | _ -> ()
+        in
+        if !pending_redraw then after_redraw f else f ()
     with exn ->
       Printf.printf "Error in event handler %S: %s\n%!" ty (Printexc.to_string exn)
   in

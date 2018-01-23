@@ -310,6 +310,54 @@ module DemoSelection = struct
   let app = simple_app ~init ~update ~view ()
 end
 
+module DemoCheckbox = struct
+  type model =
+    {
+      checked: bool;
+    }
+
+  let init = {checked = true}
+
+  let view {checked} =
+    div
+      [
+        elt "input" []
+          ~a:[str_prop "type" "checkbox";
+              bool_prop "checked" checked;
+              onclick `Click1;
+             ];
+        elt "input" []
+          ~a:[str_prop "type" "checkbox";
+              bool_prop "checked" checked;
+              onclick `Click1;
+             ];
+        elt "input" []
+          ~a:[str_prop "type" "checkbox";
+              bool_prop "checked" (not checked);
+              onclick `Click1;
+             ];
+        elt "input" []
+          ~a:[str_prop "type" "checkbox";
+              bool_prop "checked" checked;
+             ];
+        elt "input" []
+          ~a:[str_prop "type" "checkbox";
+              bool_prop "checked" true;
+             ];
+        elt "input" []
+          ~a:[str_prop "type" "checkbox";
+              onchange_checked (fun b -> `Change b);
+             ];
+      ]
+
+  let update model = function
+    | `Click1 -> {checked=not model.checked}
+    | `Change b -> {checked=b}
+
+  let app = simple_app ~init ~update ~view ()
+end
+
+
 (* Custom command handlers *)
 
 let run_http_get ~url ~payload ~on_success () =
@@ -354,6 +402,7 @@ let run () =
   r (Pair.app DemoHttp.app Demo3.app);
   r MouseMove.app;
   r DemoSelection.app;
+  r DemoCheckbox.app;
   ()
 
 let () = Window.set_onload window run

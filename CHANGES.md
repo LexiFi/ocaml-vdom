@@ -2,6 +2,7 @@ Next release
 ============
 
 - GPR#14: delay rendering (view + DOM updates) with requestAnimationFrame
+- GPR#16: improve support for checkboxes
 
 0.1
 ===

@@ -66,6 +66,7 @@ type 'msg event_handler =
   | Input of (string -> 'msg)
   | Change of (string -> 'msg)
   | ChangeIndex of (int -> 'msg)
+  | ChangeChecked of (bool -> 'msg)
   | MouseMove of (mouse_event -> 'msg)
   | KeyDown of (key_event -> 'msg)
 
@@ -92,6 +93,8 @@ val onfocus: 'msg -> 'msg attribute
 val onblur: 'msg -> 'msg attribute
 val oninput: (string -> 'msg) -> 'msg attribute
     (** Pass the [value] property of the event target. *)
+val onchange_checked: (bool -> 'msg) -> 'msg attribute
+    (** Pass the [checked] property of the event targer. *)
 
 val onchange: (string -> 'msg) -> 'msg attribute
     (** Pass the [value] property of the event target. *)
