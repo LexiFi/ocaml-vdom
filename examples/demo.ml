@@ -358,6 +358,36 @@ module DemoCheckbox = struct
 end
 
 
+module Issue18_propagation = struct
+  open Vdom
+
+  type model = Unclicked | Clicked of string
+
+  type message = Click of string | Reset
+
+  let view =
+    function
+    | Unclicked ->
+        div ~a:[onclick (fun _ -> Click "outer"); class_ "outer"]
+          [
+            div ~a:[ class_ "inner"] [text "inside the inner div"];
+            div ~a:[ class_ "inner"; onclick (fun _ -> Click "inner")]
+              [text "inner div with own click handler"];
+            text "outside the inner div";
+          ]
+    | Clicked s ->
+        div ~a:[onclick (fun _ -> Reset)] [text (Printf.sprintf "Clicked: %s" s)]
+
+  let init = Unclicked
+
+  let update _m = function
+    | Click s -> Clicked s
+    | Reset -> Unclicked
+
+  let app = simple_app ~init ~view ~update ()
+
+end
+
 (* Custom command handlers *)
 
 let run_http_get ~url ~payload ~on_success () =
@@ -403,6 +433,7 @@ let run () =
   r MouseMove.app;
   r DemoSelection.app;
   r DemoCheckbox.app;
+  r Issue18_propagation.app;
   ()
 
 let () = Window.set_onload window run
