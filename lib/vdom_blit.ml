@@ -405,12 +405,12 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
 
 type 'msg find =
   | NotFound
-  | Found: {mapper: ('inner_msg -> 'msg); inner: 'inner_msg ctrl} -> 'msg find
+  | Found: {mapper: ('inner_msg -> 'msg); inner: 'inner_msg ctrl; parent: 'msg find} -> 'msg find
 
-let rec found: type inner_msg msg. (inner_msg -> msg) -> inner_msg ctrl -> msg find = fun mapper -> function
-  | BElement _ | BText _ | BCustom _ as inner -> Found {mapper; inner}
-  | BMap {f; child; _} -> found (fun x -> mapper (f x)) child
-  | BMemo {child; _} -> found mapper child
+let rec found: type inner_msg msg. (inner_msg -> msg) -> msg find -> inner_msg ctrl -> msg find = fun mapper parent -> function
+  | BElement _ | BText _ | BCustom _ as inner -> Found {mapper; inner; parent}
+  | BMap {f; child; _} -> found (fun x -> mapper (f x)) parent child
+  | BMemo {child; _} -> found mapper parent child
 
 (* Find a ctrl associated to a DOM element.
    Normalize by traversing Map node, and also return the composition of all such mappers
@@ -421,14 +421,14 @@ let rec vdom_of_dom: type msg. msg ctrl -> Element.t -> msg find = fun root dom 
   match Ojs.option_of_js Element.t_of_js (Element.t_to_js dom) with
   | None -> NotFound
   | Some dom when dom == get_dom root ->
-      found (fun x -> x) root
+      found (fun x -> x) NotFound root
   | Some dom ->
       begin match vdom_of_dom root (Element.parent_node dom) with
       | NotFound -> NotFound
-      | Found {mapper; inner = BElement {children; _}} ->
+      | Found {mapper; inner = BElement {children; _}} as parent ->
           begin match List.find (fun c -> get_dom c == dom) children with
           | exception Not_found -> assert false
-          | c -> found mapper c
+          | c -> found mapper parent c
           end
       | Found {mapper = _; inner = BCustom _} ->
           NotFound
@@ -522,36 +522,44 @@ let run (type msg) (type model) ?(env = empty)
     let ty = Event.type_ evt in
     try
       let tgt = Element.t_of_js (Event.target evt) in
-      begin match vdom_of_dom !current tgt with
-      | Found {mapper; inner = ( BElement {vdom = Element {attributes; _}; _}
-                               | BCustom  {vdom = Custom  {attributes; _}; _} ) } ->
-          let rec loop l =
-            match ty, l with
-            | "input", Handler (Input f) :: _-> Some (f (Element.value tgt))
-            | "change", Handler (Change f) :: _-> Some (f (Element.value tgt))
-            | "change", Handler (ChangeIndex f) :: _-> Some (f (Element.selected_index tgt))
-            | "change", Handler (ChangeChecked f) :: _-> Some (f (Element.checked tgt))
-            | "click", Handler (Click f) :: _ -> Some (f (mouse_event evt))
-            | "dblclick", Handler (DblClick f) :: _ -> Some (f (mouse_event evt))
-            | "blur", Handler (Blur msg) :: _-> Some msg
-            | "focus", Handler (Focus msg) :: _ -> Some msg
-            | "mousemove", Handler (MouseMove f) :: _ -> Some (f (mouse_event evt))
-            | "keydown", Handler (KeyDown f) :: _ -> Some (f (key_event evt))
-            | _, _ :: tl -> loop tl
-            | _, [] -> None
-          in
-          begin match loop attributes with
-          | None -> ()
-          | Some msg -> process (mapper msg)
-          end
-      | _ ->
-          ()
-      end;
+      let rec apply_handler l =
+        match ty, l with
+        | "input", Handler (Input f) :: _-> Some (f (Element.value tgt))
+        | "change", Handler (Change f) :: _-> Some (f (Element.value tgt))
+        | "change", Handler (ChangeIndex f) :: _-> Some (f (Element.selected_index tgt))
+        | "change", Handler (ChangeChecked f) :: _-> Some (f (Element.checked tgt))
+        | "click", Handler (Click f) :: _ -> Some (f (mouse_event evt))
+        | "dblclick", Handler (DblClick f) :: _ -> Some (f (mouse_event evt))
+        | "blur", Handler (Blur msg) :: _-> Some msg
+        | "focus", Handler (Focus msg) :: _ -> Some msg
+        | "mousemove", Handler (MouseMove f) :: _ -> Some (f (mouse_event evt))
+        | "keydown", Handler (KeyDown f) :: _ -> Some (f (key_event evt))
+        | _, _ :: tl -> apply_handler tl
+        | _, [] -> None
+      in
+      let rec propagate = function
+        | Found {
+            mapper;
+            inner = ( BElement {vdom = Element {attributes; _}; _}
+                    | BCustom  {vdom = Custom  {attributes; _}; _} );
+            parent;
+          } ->
+            begin match apply_handler attributes with
+            | None -> propagate parent
+            | Some msg -> process (mapper msg)
+            end
+        | _ ->
+            ()
+      in
+      propagate (vdom_of_dom !current tgt);
+
       if ty = "input" || ty = "change" then
         let f () =
           match vdom_of_dom !current tgt with
           (* note: the new vdom can be different after processing
              the event above *)
+          (* !! This is probably broken now that we delay updating the vdom
+                with request_animation_frame !! *)
           | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}} ->
               List.iter
                 (function
