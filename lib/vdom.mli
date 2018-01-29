@@ -67,6 +67,7 @@ type 'msg event_handler =
   | Change of (string -> 'msg)
   | ChangeIndex of (int -> 'msg)
   | ChangeChecked of (bool -> 'msg)
+  | ChangeFiles of (Js_browser.File.t list -> 'msg)
   | MouseMove of (mouse_event -> 'msg)
   | KeyDown of (key_event -> 'msg)
 
@@ -101,6 +102,9 @@ val onchange: (string -> 'msg) -> 'msg attribute
 
 val onchange_index: (int -> 'msg) -> 'msg attribute
     (** Pass the [selected_index] property of the event target. *)
+
+val onchange_files: (Js_browser.File.t list -> 'msg) -> 'msg attribute
+    (** Pass the [files] property of the event target. *)
 
 val onmousemove:  (mouse_event -> 'msg) -> 'msg attribute
 val onkeydown: (key_event -> 'msg) -> 'msg attribute

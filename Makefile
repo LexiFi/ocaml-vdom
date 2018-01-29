@@ -26,6 +26,10 @@ demo:
 	cd examples && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -I ../lib -no-check-prims -linkpkg -o date.exe vdom.cma date.ml
 	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o date.js date.exe
 
+file:
+	cd examples && ocamlfind ocamlc $(OCAMLFLAGS) $(PACKAGES) -I ../lib -no-check-prims -linkpkg -o file.exe vdom.cma file.ml
+	cd examples && js_of_ocaml +gen_js_api/ojs_runtime.js -o file.js file.exe
+
 
 clean:
 	cd lib && rm -f rm -rf *~ *.cm* js_browser.ml
