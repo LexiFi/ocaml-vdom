@@ -327,6 +327,8 @@ module Window: sig
   val session_storage: t -> Storage.t option
   val local_storage: t -> Storage.t option
 
+  val inner_width: t -> float
+  val inner_height: t -> float
   val page_x_offset: t -> int
   val page_y_offset: t -> int
   val scroll_by: t -> int -> int -> unit
