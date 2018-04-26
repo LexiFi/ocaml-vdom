@@ -109,6 +109,8 @@ module Event : sig
   val alt_key: t -> bool (* key *)
   val shift_key: t -> bool (* key *)
   val which: t -> int    (* key *)
+  val code : t -> string (* key *)
+  val key : t -> string (* key *)
 
   val delta_y: t -> float (* wheel *)
   val delta_x: t -> float (* wheel *)
