@@ -104,6 +104,9 @@ module Event : sig
   val screen_x: t -> int (* mouse *)
   val screen_y: t -> int (* mouse *)
 
+  val movement_x: t -> int (* mouse *)
+  val movement_y: t -> int (* mouse *)
+
   val buttons: t -> int  (* mouse *)
 
   val alt_key: t -> bool (* key *)
