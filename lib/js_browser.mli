@@ -396,6 +396,35 @@ module XHR: sig
   val set_onreadystatechange: t -> (unit -> unit) -> unit
 end
 
+module WebSocket : sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  type ready_state =
+    | Connecting [@js 0]
+    | Open [@js 1]
+    | Closing [@js 2]
+    | Closed [@js 3]
+  [@@js.enum]
+
+  val create : string -> ?protocols:string list -> unit -> t [@@js.new "WebSocket"]
+  val send : t -> string -> unit
+  val close : t -> ?code:int -> ?reason:string -> unit -> unit
+
+  val binary_type : t -> string
+  val set_binary_type : t -> string -> unit
+  val ready_state : t -> ready_state
+
+  val add_event_listener: t -> string -> (Event.t -> unit) -> bool -> unit
+
+  module CloseEvent : sig
+    type t = Event.t
+
+    val code : t -> int
+  end
+end
+
 val window: Window.t
 val document: Document.t
 

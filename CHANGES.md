@@ -5,6 +5,7 @@ Next release
 - GPR#15: click/dblclick handlers take a mouse_event argument (API change)
 - GPR#16: improve support for checkboxes
 - GPR#18: propagate DOM events upwards until finding a handler
+- GPR#21: bindings for WebSockets (contributed by Levi Roth)
 
 0.1
 ===
