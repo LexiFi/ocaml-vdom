@@ -6,6 +6,8 @@ Next release
 - GPR#16: improve support for checkboxes
 - GPR#18: propagate DOM events upwards until finding a handler
 - GPR#21: bindings for WebSockets (contributed by Levi Roth)
+- GPR#22: Add window.inner{Width,Height} (contributed by 'copy')
+- GPR#23: Add KeyboardEvent.{code,key} (contributed by 'copy')
 
 0.1
 ===
