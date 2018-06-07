@@ -8,6 +8,7 @@ Next release
 - GPR#21: bindings for WebSockets (contributed by Levi Roth)
 - GPR#22: Add window.inner{Width,Height} (contributed by 'copy')
 - GPR#23: Add KeyboardEvent.{code,key} (contributed by 'copy')
+- GPR#24: Make the vdom type covariant in the 'msg parameter (contributed by 'copy')
 - GPR#25: Add MouseEvent.{movementX,movementY} (contributed by 'copy')
 
 
