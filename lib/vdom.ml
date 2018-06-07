@@ -75,7 +75,7 @@ let type_button = type_ "button"
 let value x = Property ("value", String x)
 let disabled x = Property ("disabled", Bool x)
 
-type 'msg vdom =
+type +'msg vdom =
   | Text of
       {
         key: string;

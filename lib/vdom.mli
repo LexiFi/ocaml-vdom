@@ -153,7 +153,7 @@ val input_event: string -> event
 (** {2 VDOM} *)
 
 
-type 'msg vdom =
+type +'msg vdom =
   | Text of
       {
         key: string;
