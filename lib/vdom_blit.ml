@@ -19,12 +19,13 @@ module Cmd = struct
   type handler = {f: 'msg. 'msg ctx -> 'msg Vdom.Cmd.t -> bool}
 
   let rec run: type t. handler list -> (t -> unit) -> t Cmd.t -> unit = fun h p -> function
+    | Cmd.Echo msg -> p msg
     | Cmd.Batch l -> List.iter (run h p) l
     | Cmd.Map (f, cmd) -> run h (fun x -> p (f x)) cmd
     | x ->
         let ctx = {send_msg = p} in
         let rec loop = function
-          | [] -> failwith "No command handler found!"
+          | [] -> failwith (Printf.sprintf "No command handler found! (%s)" (Obj.extension_name (Obj.extension_constructor x)))
           | hd :: tl ->
               if hd.f ctx x then ()
               else loop tl
@@ -67,19 +68,29 @@ end
 
 (* Auto scrolling *)
 
+let rec scroll_parent node =
+  if node = Element.null then
+    Document.body document
+  else
+    let overflow_y = Style.get (Window.get_computed_style window node) "overflowY" in
+    let is_scrollable = overflow_y <> "visible" && overflow_y <> "hidden" in
+    if is_scrollable && Element.scroll_height node >= Element.client_height node then
+      node
+    else
+      scroll_parent (Element.parent_node node)
+
 let scroll_to_make_visible child =
   let open Js_browser in
-  let parent = Element.parent_node child in
+  let parent = scroll_parent child in
   let r_parent = Element.get_bounding_client_rect parent in
   let r_child = Element.get_bounding_client_rect child in
-
   let y1 = Rect.bottom r_parent and y2 = Rect.bottom r_child in
-  if y2 > y1 then Element.set_scroll_top parent (Element.scroll_top parent +. y2 -. y1)
+  if y2 > y1 then
+    Element.set_scroll_top parent (Element.scroll_top parent +. y2 -. y1)
   else
     let y1 = Rect.top r_parent and y2 = Rect.top r_child in
-    if y2 < y1 then Element.set_scroll_top parent (Element.scroll_top parent +. y2 -. y1)
-
-
+    if y2 < y1 then
+      Element.set_scroll_top parent (Element.scroll_top parent +. y2 -. y1)
 
 (* Rendering (VDOM -> DOM) *)
 
@@ -119,6 +130,12 @@ let eval_prop = function
   | Int x -> Ojs.int_to_js x
   | Bool x -> Ojs.bool_to_js x
   | Float x -> Ojs.float_to_js x
+
+let string_of_prop = function
+  | String s -> s
+  | Int x -> string_of_int x
+  | Bool x -> string_of_bool x
+  | Float x -> string_of_float x
 
 let same_prop v1 v2 =
   v1 == v2 ||
@@ -207,31 +224,35 @@ let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
       BElement {vdom; dom; children}
 
 
-let sync_props same set clear l1 l2 =
+let sync_props to_string same set clear l1 l2 =
   let sort = List.sort (fun (k1, _) (k2, _) -> compare (k1:string) k2) in
   let l1 = sort l1 and l2 = sort l2 in
   let rec loop l1 l2 =
     match l1, l2 with
     | [], [] -> ()
 
-    | (k1, _) :: tl1, (k2, _) :: _ when k1 < k2 ->
+    | (k1, v1) :: tl1, (k2, _) :: _ when k1 < k2 ->
+        if debug then Printf.printf "Property %s unset %s =>\n%!" k1 (to_string v1);
         clear k1;
         loop tl1 l2
-    | (k1, _) :: tl1, [] ->
+    | (k1, v1) :: tl1, [] ->
+        if debug then Printf.printf "Property %s unset %s =>\n%!" k1 (to_string v1);
         clear k1;
         loop tl1 []
 
     | (k1, _) :: _, (k2, v2) :: tl2 when k2 < k1 ->
+        if debug then Printf.printf "Property %s set => %s\n%!" k2 (to_string v2);
         set k2 v2;
         loop l1 tl2
     | [], (k2, v2) :: tl2 ->
+        if debug then Printf.printf "Property %s set => %s\n%!" k2 (to_string v2);
         set k2 v2;
         loop [] tl2
 
     | (_k1, v1) :: tl1, (k2, v2) :: tl2 ->
         (* k1 = k2 *)
         if not (same v1 v2) then begin
-          if debug then Printf.printf "Property %s changed\n%!" k2;
+          if debug then Printf.printf "Property %s changed %s => %s\n%!" k2 (to_string v1) (to_string v2);
           set k2 v2;
         end;
         loop tl1 tl2
@@ -246,14 +267,21 @@ let rec choose f = function
       | None -> choose f tl
       | Some x -> x :: choose f tl
 
+let js_empty_string =
+  Ojs.string_to_js ""
+
 let sync_attributes dom a1 a2 =
   let props = function Property (k, v) -> Some (k, v) | Style _ | Handler _ | Attribute _ -> None in
   let set k v =
-    if not (custom_attribute dom k) then
-      Ojs.set (Element.t_to_js dom) k (eval_prop v)
+    match k, v with
+    | "value", String s when s = Element.value dom -> ()
+    | _ ->
+        if not (custom_attribute dom k) then
+          Ojs.set (Element.t_to_js dom) k (eval_prop v)
   in
   let clear k = Ojs.set (Element.t_to_js dom) k Ojs.null in
   sync_props
+    string_of_prop
     same_prop
     set clear
     (choose props a1)
@@ -261,8 +289,9 @@ let sync_attributes dom a1 a2 =
 
   let styles = function Style (k, v) -> Some (k, String v) | Property _ | Handler _ | Attribute _ -> None in
   let set k v = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k (eval_prop v) in
-  let clear k = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k Ojs.null in
+  let clear k = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k js_empty_string in
   sync_props
+    string_of_prop
     same_prop
     set clear
     (choose styles a1)
@@ -272,6 +301,7 @@ let sync_attributes dom a1 a2 =
   let set k v = Element.set_attribute dom k v in
   let clear k = Element.remove_attribute dom k in
   sync_props
+    (fun s -> s)
     (fun (s1: string) s2 -> s1 = s2)
     set clear
     (choose attrs a1)
@@ -425,12 +455,12 @@ let rec vdom_of_dom: type msg. msg ctrl -> Element.t -> msg find = fun root dom 
   | Some dom ->
       begin match vdom_of_dom root (Element.parent_node dom) with
       | NotFound -> NotFound
-      | Found {mapper; inner = BElement {children; _}} as parent ->
+      | Found {mapper; inner = BElement {children; _}; _} as parent ->
           begin match List.find (fun c -> get_dom c == dom) children with
           | exception Not_found -> assert false
           | c -> found mapper parent c
           end
-      | Found {mapper = _; inner = BCustom _} ->
+      | Found {mapper = _; inner = BCustom _; _} ->
           NotFound
       | _ -> assert false
       end
@@ -439,12 +469,20 @@ let mouse_event e =
   {
     x = Event.client_x e;
     y = Event.client_y e;
+    page_x = Event.page_x e;
+    page_y = Event.page_y e;
     buttons = Event.buttons e;
+    alt_key = Event.alt_key e;
+    ctrl_key = Event.ctrl_key e;
+    shift_key = Event.shift_key e;
   }
 
 let key_event e =
   {
     which = Event.which e;
+    alt_key = Event.alt_key e;
+    ctrl_key = Event.ctrl_key e;
+    shift_key = Event.shift_key e;
   }
 
 type ('model, 'msg) app = {
@@ -518,6 +556,8 @@ let run (type msg) (type model) ?(env = empty)
 
   Element.append_child container (get_dom x);
 
+  let prev_value_attribute = "data-ocaml-vdom-prev-value" in
+
   let onevent evt =
     let ty = Event.type_ evt in
     try
@@ -525,15 +565,27 @@ let run (type msg) (type model) ?(env = empty)
       let rec apply_handler l =
         match ty, l with
         | "input", Handler (Input f) :: _-> Some (f (Element.value tgt))
-        | "change", Handler (Change f) :: _-> Some (f (Element.value tgt))
-        | "change", Handler (ChangeIndex f) :: _-> Some (f (Element.selected_index tgt))
-        | "change", Handler (ChangeChecked f) :: _-> Some (f (Element.checked tgt))
+        (* cross browser emulation of change *)
+        | "blur", Handler (Change f) :: _ ->
+            let curr_value = Element.value tgt in
+            let changed =
+              not (Element.has_attribute tgt prev_value_attribute) ||
+              Element.get_attribute tgt prev_value_attribute <> curr_value
+            in
+            if changed then Some (f curr_value) else None
+        | "focus", Handler (Change _) :: tl ->
+            let curr_value = Element.value tgt in
+            Element.set_attribute tgt prev_value_attribute curr_value;
+            apply_handler tl
+        | "change", Handler (ChangeIndex f) :: _ -> Some (f (Element.selected_index tgt))
+        | "change", Handler (ChangeChecked f) :: _ -> Some (f (Element.checked tgt))
         | "click", Handler (Click f) :: _ -> Some (f (mouse_event evt))
         | "dblclick", Handler (DblClick f) :: _ -> Some (f (mouse_event evt))
-        | "blur", Handler (Blur msg) :: _-> Some msg
+        | "blur", Handler (Blur msg) :: _ -> Some msg
         | "focus", Handler (Focus msg) :: _ -> Some msg
         | "mousemove", Handler (MouseMove f) :: _ -> Some (f (mouse_event evt))
         | "keydown", Handler (KeyDown f) :: _ -> Some (f (key_event evt))
+        | "contextmenu", Handler (ContextMenu f) :: _ -> Event.prevent_default evt; Some (f (mouse_event evt))
         | _, _ :: tl -> apply_handler tl
         | _, [] -> None
       in
@@ -551,22 +603,21 @@ let run (type msg) (type model) ?(env = empty)
         | _ ->
             ()
       in
+
       propagate (vdom_of_dom !current tgt);
 
-      if ty = "input" || ty = "change" then
+      if ty = "input" || ty = "blur" then
         let f () =
           match vdom_of_dom !current tgt with
           (* note: the new vdom can be different after processing
              the event above *)
           (* !! This is probably broken now that we delay updating the vdom
                 with request_animation_frame !! *)
-          | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}} ->
+          | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
               List.iter
                 (function
-                  | Property ("value", String s2) ->
-                      Ojs.set (Element.t_to_js tgt) "value" (Ojs.string_to_js s2)
-                  | Property ("checked", Bool s2) ->
-                      Ojs.set (Element.t_to_js tgt) "checked" (Ojs.bool_to_js s2)
+                  | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
+                  | Property ("checked", Bool s2) -> Element.set_checked tgt s2
                   | _ -> ()
                 )
                 attributes
@@ -579,7 +630,7 @@ let run (type msg) (type model) ?(env = empty)
 
   let process_custom tgt event =
     begin match vdom_of_dom !current tgt with
-    | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}} ->
+    | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
         let rec loop = function
           | Handler h :: rest -> begin match event.ev h with Some _ as r -> r | None -> loop rest end
           | _ :: rest -> loop rest
@@ -603,5 +654,6 @@ let run (type msg) (type model) ?(env = empty)
   Element.add_event_listener container "blur" onevent true;
   Element.add_event_listener container "mousemove" onevent true;
   Element.add_event_listener container "keydown" onevent true;
+  Element.add_event_listener container "contextmenu" onevent true;
   Cmd.run env.cmds process cmd0;
   {dom = container; process}
