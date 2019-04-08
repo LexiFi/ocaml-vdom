@@ -222,12 +222,14 @@ end
 
 module MouseMove = struct
 
-  let init = return ({x = 0; y = 0; buttons = 0} : Vdom.mouse_event)
+  type evt = {x: int; y: int; buttons: int}
 
-  let view ({x; y; buttons} : Vdom.mouse_event) =
+  let init = return {x = 0; y = 0; buttons = 0}
+
+  let view ({x; y; buttons} : evt) =
     elt "span"
       ~a:[
-        onmousemove (fun evt -> evt);
+        onmousemove (fun {Vdom.x; y; buttons; _} -> {x; y; buttons});
         style "background-color" "red"
       ]
       [

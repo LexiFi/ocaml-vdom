@@ -17,6 +17,36 @@ module Storage : sig
   val clear: t -> unit
 end
 
+module RegExp : sig
+  type t = private Ojs.t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val new_reg_exp: string -> ?flags:string -> unit -> t [@@js.new]
+end
+
+module JsString : sig
+  type t = private Ojs.t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val of_string: string -> t
+  [@@js.custom let of_string s = Ojs.string_to_js s]
+
+  val to_string: t -> string
+  [@@js.custom let to_string x = Ojs.string_of_js x]
+
+  val to_lower_case: t -> t [@@js.call]
+  val to_upper_case: t -> t [@@js.call]
+  val concat: t -> (t list [@js.variadic]) -> t
+  val includes: t -> t -> bool
+  val ends_with: t -> t -> bool
+  val index_of: t -> t -> int
+  val repeat: t -> int -> t
+  val search: t -> RegExp.t -> int
+  val trim: t -> t [@@js.call]
+end
+
 module Date : sig
   type t = private Ojs.t
   val t_of_js: Ojs.t -> t
@@ -101,6 +131,9 @@ module Event : sig
   val client_x: t -> int (* mouse *)
   val client_y: t -> int (* mouse *)
 
+  val page_x: t -> float (* mouse *)
+  val page_y: t -> float (* mouse *)
+
   val screen_x: t -> int (* mouse *)
   val screen_y: t -> int (* mouse *)
 
@@ -110,6 +143,7 @@ module Event : sig
   val buttons: t -> int  (* mouse *)
 
   val alt_key: t -> bool (* key *)
+  val ctrl_key: t -> bool (* key *)
   val shift_key: t -> bool (* key *)
   val which: t -> int    (* key *)
   val code : t -> string (* key *)
@@ -167,6 +201,12 @@ module Style : sig
   val set_top: t -> string -> unit
   val set_right: t -> string -> unit
   val set_cursor: t -> string -> unit
+
+  val get: t -> string -> string
+  [@@js.custom
+    let get style prop =
+      Ojs.string_of_js (Ojs.get (t_to_js style) prop)
+  ]
 end
 
 module Element : sig
@@ -193,8 +233,21 @@ module Element : sig
   val last_child: t -> t (* May return Element.null *)
   val next_sibling: t (* T *) -> t (* May return Element.null *)
 
+  val remove_all_children: t -> unit
+  [@@js.custom
+    let remove_all_children x =
+      let rec loop child =
+        if child = null then ()
+        else (remove_child x child; loop (first_child x))
+      in
+      loop (first_child x)
+  ]
+
   val has_child_nodes: t (* T *) -> bool [@@js.call]
   val add_event_listener: t (* T *) -> string -> (Event.t -> unit) -> bool -> unit
+
+  val inner_text: t -> string
+  val get_elements_by_tag_name: t -> string -> t array
 
   val has_attribute: t -> string -> bool
   val get_attribute: t -> string -> string
@@ -207,10 +260,12 @@ module Element : sig
 
   val value: t (* <input> *) -> string
   val set_value: t (* <input> *) -> string -> unit
+  val select: t (* <input> <textarea *) -> unit
   val files: t (* <input> *) -> File.t list
 
   val selected_index: t (* <select> *) -> int
   val checked: t (* <input> *) -> bool
+  val set_checked: t (* <input> *) -> bool -> unit
 
   val node_value: t (* T *) -> string
   val set_node_value: t (* T *) -> string -> unit
@@ -222,6 +277,7 @@ module Element : sig
   val set_inner_HTML: t -> string -> unit
   val set_text_content: t -> string -> unit
   val set_class_name: t -> string -> unit
+  val class_name: t -> string
 
   val client_width: t -> int
   val client_height: t -> int
@@ -234,6 +290,11 @@ module Element : sig
   val set_scroll_top: t -> float -> unit
 
   val focus: t -> unit
+
+  val selection_start: t -> int
+  val selection_end: t -> int
+  val set_selection_start: t -> int -> unit
+  val set_selection_end: t -> int -> unit
 end
 
 module Document: sig
@@ -259,6 +320,10 @@ module Document: sig
   val write: t -> string -> unit [@@js.call]
   val writeln: t -> string -> unit [@@js.call]
   val close: t -> unit
+
+  val exec_command: t -> string -> bool
+
+  val query_selector: t -> string -> Element.t
 end
 
 module History : sig
@@ -326,7 +391,7 @@ module Window: sig
   val clear_timeout: t -> timeout_id -> unit
   val request_animation_frame: t -> (float -> unit) -> unit
 
-  val open_: t -> ?url:string -> ?name:string -> ?features:string -> ?replace:bool -> unit -> unit
+  val open_: t -> ?url:string -> ?name:string -> ?features:string -> ?replace:bool -> unit -> t
   val alert: t -> string -> unit
 
   val session_storage: t -> Storage.t option
@@ -340,6 +405,8 @@ module Window: sig
   val scroll_to: t -> int -> int -> unit
   val history: t -> History.t
   val location : t -> Location.t
+
+  val get_computed_style: t -> Element.t -> Style.t
 end
 
 module IFrame: sig
@@ -496,6 +563,31 @@ module Console : sig
   val log: t -> Ojs.t -> unit
 end
 val console: Console.t
+
+module ArrayBuffer : sig
+  type t
+  val create: int -> t [@@js.new "ArrayBuffer"]
+end
+
+module Uint8Array : sig
+  type t
+  val from_buffer: ArrayBuffer.t -> t [@@js.new "Uint8Array"]
+  val set: t -> int array -> int -> unit
+end
+
+module Blob : sig
+  type options
+  val options: ?type_:string -> ?endings:string -> unit -> options [@@js.builder]
+
+  type t
+  val create: ([`ArrayBuffer of ArrayBuffer.t] [@js.union]) list -> ?options:options -> unit -> t [@@js.new "Blob"]
+end
+
+module ObjectURL : sig
+  val of_blob: Blob.t -> string [@@js.global "URL.createObjectURL"]
+  val revoke: string -> unit [@@js.global "URL.revokeObjectURL"]
+end
+
 
 module Svg : sig
   module Length : sig

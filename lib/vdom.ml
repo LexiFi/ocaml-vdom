@@ -7,9 +7,11 @@ module Cmd = struct
   type 'msg t = ..
 
   type 'msg t +=
+    | Echo of 'msg
     | Batch of 'msg t list
     | Map: ('a -> 'msg) * 'a t -> 'msg t
 
+  let echo msg = Echo msg
   let batch l = Batch l
   let map f x = Map (f, x)
 end
@@ -18,9 +20,9 @@ module Custom = struct
   type t = ..
 end
 
-type mouse_event = {x: int; y: int; buttons: int}
+type mouse_event = {x: int; y: int; page_x: float; page_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
-type key_event = {which: int}
+type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type 'msg event_handler =
   | Click of (mouse_event -> 'msg)
@@ -33,6 +35,7 @@ type 'msg event_handler =
   | ChangeChecked of (bool -> 'msg)
   | MouseMove of (mouse_event -> 'msg)
   | KeyDown of (key_event -> 'msg)
+  | ContextMenu of (mouse_event -> 'msg)
 
 type prop_val =
   | String of string
@@ -48,6 +51,7 @@ type 'msg attribute =
 
 let onclick msg = Handler (Click msg)
 let ondblclick msg = Handler (DblClick msg)
+let oncontextmenu msg = Handler (ContextMenu msg)
 let onfocus msg = Handler (Focus msg)
 let oninput msg = Handler (Input msg)
 let onchange msg = Handler (Change msg)
@@ -74,6 +78,20 @@ let type_ x = Property ("type", String x)
 let type_button = type_ "button"
 let value x = Property ("value", String x)
 let disabled x = Property ("disabled", Bool x)
+
+let add_class x attrs =
+  let has_className =
+    List.exists (function Property ("className", _) -> true | _ -> false) attrs
+  in
+  if has_className then
+    List.map (function
+        | Property ("className", String s) ->
+            Property ("className", String (Printf.sprintf "%s %s" s x))
+        | a ->
+            a
+      ) attrs
+  else
+    class_ x :: attrs
 
 type +'msg vdom =
   | Text of
@@ -132,6 +150,12 @@ let div ?key ?a l = elt "div" ?key ?a l
 let input ?key ?a l = elt "input" ?key ?a l
 let txt_span ?key ?a s = elt "span" ?key ?a [text s]
 
+let map_attr f = function
+  | Custom ({ attributes; _ } as x) ->
+      Custom { x with attributes = f attributes }
+  | Element ({ attributes; _ } as x) ->
+      Element { x with attributes = f attributes }
+  | x -> x
 
 let map ?(key = "_map") f child = Map {key; f; child}
 let memo ?(key = "_memo") f arg = Memo {key; f; arg}
@@ -160,3 +184,5 @@ let simple_app ~init ~update ~view () =
 type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
 
 let input_event s = {ev = function Input f -> Some (f s) | _ -> None}
+let checked_event b = {ev = function ChangeChecked f -> Some (f b) | _ -> None}
+let change_event s = {ev = function Change f -> Some (f s) | _ -> None}
