@@ -1,6 +1,8 @@
 ocaml-vdom: Elm architecture and (V)DOM for OCaml
 =================================================
 
+[![Build Status](https://travis-ci.com/LexiFi/ocaml-vdom.svg?branch=master)](https://travis-ci.com/LexiFi/ocaml-vdom)
+
 Overview
 --------
 

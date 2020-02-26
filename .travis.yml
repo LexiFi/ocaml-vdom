@@ -1,0 +1,10 @@
+language: c
+sudo: required
+install: wget https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/.travis-opam.sh
+script: bash -ex .travis-opam.sh
+env:
+  - OCAML_VERSION=4.08 PACKAGE=ocaml-vdom PINS="gen_js_api"
+  - OCAML_VERSION=4.09 PACKAGE=ocaml-vdom PINS="gen_js_api"
+  - OCAML_VERSION=4.10 PACKAGE=ocaml-vdom PINS="gen_js_api"
+os:
+  - linux

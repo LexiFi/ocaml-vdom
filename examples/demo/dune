@@ -1,0 +1,15 @@
+(executable
+ (name demo)
+ (libraries vdom)
+ (modes js)
+ (link_flags -no-check-prims))
+
+(rule
+ (targets demo.js)
+ (deps demo.bc.js)
+ (action
+  (run cp %{deps} %{targets})))
+
+(alias
+ (name DEFAULT)
+ (deps demo.js demo.html))
