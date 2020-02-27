@@ -1,0 +1,14 @@
+(rule
+ (targets js_browser.ml)
+ (deps js_browser.mli)
+ (action
+  (run %{bin:gen_js_api} %{deps})))
+
+(library
+ (name vdom)
+ (public_name ocaml-vdom)
+ (synopsis "Virtual Dom")
+ (libraries gen_js_api)
+ (wrapped false)
+ (modes byte)
+ (js_of_ocaml))

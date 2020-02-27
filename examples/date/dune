@@ -1,0 +1,15 @@
+(executable
+ (name date)
+ (libraries vdom)
+ (modes js)
+ (link_flags -no-check-prims))
+
+(rule
+ (targets date.js)
+ (deps date.bc.js)
+ (action
+  (run cp %{deps} %{targets})))
+
+(alias
+ (name DEFAULT)
+ (deps date.js date.html))

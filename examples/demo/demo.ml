@@ -11,7 +11,9 @@ type 'msg Vdom.Cmd.t +=
   | Http_get of {url: string; payload: string; on_success: (string -> 'msg)}
   | After of int * 'msg
 
-let http_get ~url ~payload on_success = Http_get {url; payload; on_success}
+let http_get (type msg) ~url ~payload (on_success : _ -> msg) : msg Vdom.Cmd.t =
+  Http_get {url; payload; on_success}
+
 let after x f = After (x, f)
 
 
