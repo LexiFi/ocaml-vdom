@@ -18,6 +18,7 @@ end
 
 module Custom = struct
   type t = ..
+  type event = ..
 end
 
 type mouse_event = {x: int; y: int; page_x: float; page_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
@@ -25,6 +26,7 @@ type mouse_event = {x: int; y: int; page_x: float; page_y: float; buttons: int; 
 type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type 'msg event_handler =
+  | MouseDown of (mouse_event -> 'msg)
   | Click of (mouse_event -> 'msg)
   | DblClick of (mouse_event -> 'msg)
   | Focus of 'msg
@@ -35,7 +37,9 @@ type 'msg event_handler =
   | ChangeChecked of (bool -> 'msg)
   | MouseMove of (mouse_event -> 'msg)
   | KeyDown of (key_event -> 'msg)
+  | KeyDownCancel of (key_event -> 'msg option)
   | ContextMenu of (mouse_event -> 'msg)
+  | CustomEvent of (Custom.event -> 'msg option)
 
 type prop_val =
   | String of string
@@ -49,6 +53,7 @@ type 'msg attribute =
   | Handler of 'msg event_handler
   | Attribute of string * string
 
+let onmousedown msg = Handler (MouseDown msg)
 let onclick msg = Handler (Click msg)
 let ondblclick msg = Handler (DblClick msg)
 let oncontextmenu msg = Handler (ContextMenu msg)
@@ -60,6 +65,8 @@ let onchange_checked msg = Handler (ChangeChecked msg)
 let onblur msg = Handler (Blur msg)
 let onmousemove msg = Handler (MouseMove msg)
 let onkeydown msg = Handler (KeyDown msg)
+let onkeydown_cancel msg = Handler (KeyDownCancel msg)
+let oncustomevent msg = Handler (CustomEvent msg)
 
 
 let str_prop k v = Property (k, String v)
@@ -72,6 +79,8 @@ let int_attr k v = Attribute (k, string_of_int v)
 let float_attr k v = Attribute (k, string_of_float v)
 let scroll_to_show = bool_prop "scroll-to-show" true
 let autofocus = bool_prop "autofocus" true
+let autofocus_counter x = int_prop "autofocus" x
+let relative_dropdown x = int_prop "relative-dropdown" x
 
 let class_ x = Property ("className", String x)
 let type_ x = Property ("type", String x)
@@ -183,6 +192,9 @@ let simple_app ~init ~update ~view () =
 
 type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
 
+let blur_event = {ev = function Blur msg -> Some msg | _ -> None}
 let input_event s = {ev = function Input f -> Some (f s) | _ -> None}
 let checked_event b = {ev = function ChangeChecked f -> Some (f b) | _ -> None}
 let change_event s = {ev = function Change f -> Some (f s) | _ -> None}
+let change_index_event i = {ev = function ChangeIndex f -> Some (f i) | _ -> None}
+let custom_event e = {ev = function CustomEvent f -> f e | _ -> None}

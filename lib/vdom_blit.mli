@@ -35,6 +35,9 @@ module Custom: sig
   val send_event: ctx -> Vdom.event -> unit
   (** Can only be called after the handler returns (typically in a DOM event callback). *)
 
+  val after_redraw: ctx -> (unit -> unit) -> unit
+  (** Record an action to be executed after the next redraw. *)
+
   type handler = ctx -> Vdom.Custom.t -> t option
   (** A custom element handler recognizes some kinds of custom elements
       described in the VDOM and instantiante a concrete controller for them. *)
@@ -59,6 +62,7 @@ type ('model, 'msg) app
 
 val run:
   ?env:env ->
+  ?container:Js_browser.Element.t ->
   ('model, 'msg) Vdom.app ->
   ('model, 'msg) app
 (** Instantion a VDOM application into a concrete one, running
@@ -70,3 +74,9 @@ val dom: ('model, 'msg) app -> Js_browser.Element.t
 
 val process: ('model, 'msg) app -> 'msg -> unit
 (** Inject a message into a VDOM application. *)
+
+val get: ('model, 'msg) app -> 'model
+(** Get the current model of the VDOM application. *)
+
+val after_redraw: ('model, 'msg) app -> (unit -> unit) -> unit
+(** Execute the callback after the next redraw *)

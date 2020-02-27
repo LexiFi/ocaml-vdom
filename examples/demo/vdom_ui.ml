@@ -2,9 +2,6 @@
 (* See the attached LICENSE file.                                                                    *)
 (* Copyright 2016 by LexiFi.                                                                         *)
 
-
-open Js_browser
-
 let contains ~pattern s =
   let rec loop i =
     if i < 0 then false
