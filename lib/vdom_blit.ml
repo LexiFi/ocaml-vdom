@@ -25,7 +25,7 @@ module Cmd = struct
     | x ->
         let ctx = {send_msg = p} in
         let rec loop = function
-          | [] -> failwith (Printf.sprintf "No command handler found! (%s)" (Obj.extension_name (Obj.extension_constructor x)))
+          | [] -> failwith (Printf.sprintf "No command handler found! (%s)" (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val x)))
           | hd :: tl ->
               if hd.f ctx x then ()
               else loop tl
@@ -43,6 +43,7 @@ module Custom = struct
   type ctx =
     {
       send_event: (Vdom.event -> unit);
+      after_redraw: ((unit -> unit) -> unit);
     }
 
   type handler = ctx -> Vdom.Custom.t -> t option
@@ -50,6 +51,8 @@ module Custom = struct
   let make ~sync dom = {dom; sync}
 
   let send_event ctx = ctx.send_event
+
+  let after_redraw ctx = ctx.after_redraw
 
   let rec find_handler ctx x = function
     | [] -> failwith "Vdom_blit: no custom element handler found"
@@ -59,10 +62,10 @@ module Custom = struct
         | None -> find_handler ctx x tl
         end
 
-  let lookup process elt handlers =
+  let lookup ~process_custom ~after_redraw elt handlers =
     let rec dom = lazy ((Lazy.force el).dom)
-    and send_event e = process (Lazy.force dom) e
-    and el = lazy (find_handler {send_event} elt handlers) in
+    and send_event e = process_custom (Lazy.force dom) e
+    and el = lazy (find_handler {send_event; after_redraw} elt handlers) in
     Lazy.force el
 end
 
@@ -154,15 +157,34 @@ let async f =
 
 let custom_attribute dom = function
   | "scroll-to-show" ->
-        async
-          (fun () ->
-             try scroll_to_make_visible dom
-             with exn -> Printf.printf "scroll: %s\n%!" (Printexc.to_string exn)
-          );
-        true
+      async
+        (fun () ->
+           try scroll_to_make_visible dom
+           with exn -> Printf.printf "scroll: %s\n%!" (Printexc.to_string exn)
+        );
+      true
 
   | "autofocus" ->
       async (fun () -> Element.focus dom);
+      true
+
+  | "relative-dropdown" ->
+      let style = Element.style dom in
+      Style.set_position (Element.style dom) "absolute";
+      let px = Printf.sprintf "%fpx" in
+      async (fun () ->
+          match Element.offset_parent dom with
+          | None -> ()
+          | Some offset_parent ->
+              let parent = Element.parent_node dom in
+              let rect = Element.get_bounding_client_rect parent in
+              let offset_rect = Element.get_bounding_client_rect offset_parent in
+              let top = Rect.top rect -. Rect.top offset_rect in
+              let left = Rect.left rect -. Rect.left offset_rect in
+              Style.set_top style (px (top +. float (Element.offset_height parent)));
+              Style.set_left style (px left);
+              Style.set_width style (px (float (Element.offset_width parent)))
+        );
       true
 
   | _ -> false
@@ -193,6 +215,7 @@ type ctx =
   {
     process_custom: (Element.t -> event -> unit);
     custom_handlers: Custom.handler list;
+    after_redraw: ((unit -> unit) -> unit);
   }
 
 let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
@@ -208,7 +231,14 @@ let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
       bmemo vdom (blit ctx (f arg))
 
   | Custom {elt; attributes; key = _} ->
-      let elt = Custom.lookup ctx.process_custom elt ctx.custom_handlers in
+      let elt =
+        try Custom.lookup ~process_custom:ctx.process_custom ~after_redraw:ctx.after_redraw elt ctx.custom_handlers
+        with exn ->
+          Printf.printf "Error during vdom Custom %s lookup: %s\n%!"
+            (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val elt))
+            (Printexc.to_string exn);
+          raise exn
+      in
       apply_attributes elt.dom attributes;
       BCustom {vdom; elt}
 
@@ -223,6 +253,11 @@ let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
       apply_attributes dom attributes;
       BElement {vdom; dom; children}
 
+let blit ctx vdom =
+  try blit ctx vdom
+  with exn ->
+    Printf.printf "Error during vdom blit: %s\n%!" (Printexc.to_string exn);
+    raise exn
 
 let sync_props to_string same set clear l1 l2 =
   let sort = List.sort (fun (k1, _) (k2, _) -> compare (k1:string) k2) in
@@ -301,7 +336,7 @@ let sync_attributes dom a1 a2 =
   let set k v = Element.set_attribute dom k v in
   let clear k = Element.remove_attribute dom k in
   sync_props
-    (fun s -> s)
+    Fun.id
     (fun (s1: string) s2 -> s1 = s2)
     set clear
     (choose attrs a1)
@@ -334,7 +369,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       sync_attributes elt.dom a1 a2;
       BCustom {vdom; elt}
 
-  | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns ->
+  | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns && e1.key = e2.key ->
 
       (* TODO:
          - add a fast-path to deal with prefixes and suffixes of old/new children with identical
@@ -408,11 +443,10 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
         *)
 
         let move =
-          if idx < 0 then true
-          else
-            (if i = Array.length new_children - 1 then idx != Array.length old_children - 1
-             else indices.(i + 1) != idx + 1)
-            && Element.next_sibling (get_dom c) != !next (* could avoid reading from the DOM... *)
+          idx < 0 ||
+          ((if i = Array.length new_children - 1 then idx <> Array.length old_children - 1
+            else indices.(i + 1) <> idx + 1)
+           && Element.next_sibling (get_dom c) != !next) (* could avoid reading from the DOM... *)
         in
         if move then begin
           if debug then Printf.printf "really move\n%!";
@@ -433,6 +467,12 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       Element.replace_child parent (get_dom x) (get_dom old);
       x
 
+let sync ctx parent old vdom =
+  try sync ctx parent old vdom
+  with exn ->
+    Printf.printf "Error during vdom sync: %s\n%!" (Printexc.to_string exn);
+    raise exn
+
 type 'msg find =
   | NotFound
   | Found: {mapper: ('inner_msg -> 'msg); inner: 'inner_msg ctrl; parent: 'msg find} -> 'msg find
@@ -451,7 +491,7 @@ let rec vdom_of_dom: type msg. msg ctrl -> Element.t -> msg find = fun root dom 
   match Ojs.option_of_js Element.t_of_js (Element.t_to_js dom) with
   | None -> NotFound
   | Some dom when dom == get_dom root ->
-      found (fun x -> x) NotFound root
+      found Fun.id NotFound root
   | Some dom ->
       begin match vdom_of_dom root (Element.parent_node dom) with
       | NotFound -> NotFound
@@ -488,10 +528,14 @@ let key_event e =
 type ('model, 'msg) app = {
   dom: Js_browser.Element.t;
   process: ('msg -> unit);
+  get: (unit -> 'model);
+  after_redraw: (unit -> unit) -> unit;
 }
 
 let dom x = x.dom
 let process x = x.process
+let get x = x.get ()
+let after_redraw x = x.after_redraw
 
 type env =
   {
@@ -513,45 +557,67 @@ let global = ref empty
 
 let register e = global := merge [e; !global]
 
-let run (type msg) (type model) ?(env = empty)
+let run (type msg model) ?(env = empty) ?container
     ({init = (model0, cmd0); update; view} : (model, msg) Vdom.app) =
   let env = merge [env; !global] in
-  let container = Document.create_element document "div" in
+  let container =
+    match container with
+    | None -> Document.create_element document "div"
+    | Some container -> container
+  in
+  let post_redraw = ref [] in
+  let after_redraw f = post_redraw := f :: !post_redraw in
+  let flush _ =
+    let l = List.rev !post_redraw  in
+    post_redraw := [];
+    List.iter (fun f -> f ()) l
+  in
 
   let process_custom_fwd = ref (fun _ _ -> assert false) in
-
-  let ctx = {process_custom = (fun dom evt -> !process_custom_fwd dom evt); custom_handlers = env.customs} in
+  let ctx =
+    {
+      process_custom = (fun elt evt -> !process_custom_fwd elt evt);
+      custom_handlers = env.customs;
+      after_redraw;
+    }
+  in
+  let view model =
+    try view model
+    with exn ->
+      Printf.printf "Error during vdom view: %s\n%!" (Printexc.to_string exn);
+      raise exn
+  in
   let x = blit ctx (view model0) in
+  Window.request_animation_frame window flush;
 
   let model = ref model0 in
   let current = ref x in
 
 
   let pending_redraw = ref false in
-  let post_redraw = ref [] in
-  let after_redraw f = post_redraw := f :: !post_redraw in
   let redraw _ =
     (* TODO:
        could avoid calling view/sync if model is the same as the previous one
        (because updates are now batched
     *)
     pending_redraw := false;
-    let new_vdom = view !model in
-    let x = sync ctx container !current new_vdom in
+    let x = sync ctx container !current (view !model) in
     current := x;
-    let l = List.rev !post_redraw  in
-    post_redraw := [];
-    List.iter (fun f -> f ()) l
+    flush ()
   in
 
   let rec process msg =
-    let (new_model : model), (cmd : msg Vdom.Cmd.t) = update !model msg in
-    model := new_model;
-    Cmd.run env.cmds process cmd;
-    if not !pending_redraw then begin
-      pending_redraw := true;
-      Window.request_animation_frame window redraw
-    end
+    try
+      let (new_model : model), (cmd : msg Vdom.Cmd.t) = update !model msg in
+      model := new_model;
+      Cmd.run env.cmds process cmd;
+      if not !pending_redraw then begin
+        pending_redraw := true;
+        Window.request_animation_frame window redraw
+      end
+    with exn  ->
+      Printf.printf "Error during vdom process: %s\n%!" (Printexc.to_string exn);
+      raise exn
   in
 
   Element.append_child container (get_dom x);
@@ -562,32 +628,43 @@ let run (type msg) (type model) ?(env = empty)
     let ty = Event.type_ evt in
     try
       let tgt = Element.t_of_js (Event.target evt) in
-      let rec apply_handler l =
-        match ty, l with
-        | "input", Handler (Input f) :: _-> Some (f (Element.value tgt))
-        (* cross browser emulation of change *)
-        | "blur", Handler (Change f) :: _ ->
-            let curr_value = Element.value tgt in
-            let changed =
-              not (Element.has_attribute tgt prev_value_attribute) ||
-              Element.get_attribute tgt prev_value_attribute <> curr_value
+      let rec apply_handler = function
+        | [] -> None
+        | hd :: tl ->
+            let res =
+              match ty, hd with
+              | "input", Handler (Input f) -> Some (f (Element.value tgt))
+              | "blur", Handler (Change f) ->
+                  (* cross browser emulation of change.
+                     We remember the value when the field was last focused.  This does not work very well, since
+                     the value could have changed since then because of a programmatic action (and is the "focus"
+                     event even raised if the element is focused programmatically?). *)
+                  let curr_value = Element.value tgt in
+                  let changed =
+                    not (Element.has_attribute tgt prev_value_attribute) ||
+                    Element.get_attribute tgt prev_value_attribute <> curr_value
+                  in
+                  if changed then Some (f curr_value) else None
+              | "change", Handler (ChangeIndex f) -> Some (f (Element.selected_index tgt))
+              | "click", Handler (ChangeChecked f) -> Some (f (Element.checked tgt))
+              | "click", Handler (Click f) -> Some (f (mouse_event evt))
+              | "dblclick", Handler (DblClick f) -> Some (f (mouse_event evt))
+              | "blur", Handler (Blur msg) -> Some msg
+              | "focus", Handler (Focus msg) -> Some msg
+              | "mousemove", Handler (MouseMove f) -> Some (f (mouse_event evt))
+              | "mousedown", Handler (MouseDown f) -> Some (f (mouse_event evt))
+              | "keydown", Handler (KeyDown f) -> Some (f (key_event evt))
+              | "keydown", Handler (KeyDownCancel f) ->
+                  begin match f (key_event evt) with
+                  | None -> None
+                  | Some _ as r -> Event.prevent_default evt; r
+                  end
+              | "contextmenu", Handler (ContextMenu f) -> Event.prevent_default evt; Some (f (mouse_event evt))
+              | _ -> None
             in
-            if changed then Some (f curr_value) else None
-        | "focus", Handler (Change _) :: tl ->
-            let curr_value = Element.value tgt in
-            Element.set_attribute tgt prev_value_attribute curr_value;
-            apply_handler tl
-        | "change", Handler (ChangeIndex f) :: _ -> Some (f (Element.selected_index tgt))
-        | "change", Handler (ChangeChecked f) :: _ -> Some (f (Element.checked tgt))
-        | "click", Handler (Click f) :: _ -> Some (f (mouse_event evt))
-        | "dblclick", Handler (DblClick f) :: _ -> Some (f (mouse_event evt))
-        | "blur", Handler (Blur msg) :: _ -> Some msg
-        | "focus", Handler (Focus msg) :: _ -> Some msg
-        | "mousemove", Handler (MouseMove f) :: _ -> Some (f (mouse_event evt))
-        | "keydown", Handler (KeyDown f) :: _ -> Some (f (key_event evt))
-        | "contextmenu", Handler (ContextMenu f) :: _ -> Event.prevent_default evt; Some (f (mouse_event evt))
-        | _, _ :: tl -> apply_handler tl
-        | _, [] -> None
+            match res with
+            | Some _ -> res
+            | None -> apply_handler tl
       in
       let rec propagate = function
         | Found {
@@ -596,6 +673,9 @@ let run (type msg) (type model) ?(env = empty)
                     | BCustom  {vdom = Custom  {attributes; _}; _} );
             parent;
           } ->
+            (* see "cross browser emulation change" comment above *)
+            if ty = "focus" && List.exists (function Handler (Change _) -> true | _ -> false) attributes then
+              Element.set_attribute tgt prev_value_attribute (Element.value tgt);
             begin match apply_handler attributes with
             | None -> propagate parent
             | Some msg -> process (mapper msg)
@@ -631,29 +711,27 @@ let run (type msg) (type model) ?(env = empty)
   let process_custom tgt event =
     begin match vdom_of_dom !current tgt with
     | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
-        let rec loop = function
-          | Handler h :: rest -> begin match event.ev h with Some _ as r -> r | None -> loop rest end
-          | _ :: rest -> loop rest
-          | [] -> None
+        let select_handler = function
+          | Handler h -> event.ev h
+          | _ -> None
         in
-        begin match loop attributes with
-        | None -> ()
-        | Some msg -> process (mapper msg)
-        end
-      | _ ->
-          ()
-      end
-      (* Do we need to do something similar to the "input" case in onevent? *)
+        let msgs = List.filter_map select_handler attributes in
+        List.iter (fun msg -> process (mapper msg)) msgs
+    | _ ->
+        ()
+    end
+    (* Do we need to do something similar to the "input" case in onevent? *)
   in
   process_custom_fwd := process_custom;
-  Element.add_event_listener container "click" onevent false;
-  Element.add_event_listener container "dblclick" onevent false;
-  Element.add_event_listener container "input" onevent false;
-  Element.add_event_listener container "change" onevent false;
-  Element.add_event_listener container "focus" onevent true;
-  Element.add_event_listener container "blur" onevent true;
-  Element.add_event_listener container "mousemove" onevent true;
-  Element.add_event_listener container "keydown" onevent true;
-  Element.add_event_listener container "contextmenu" onevent true;
+  Element.add_event_listener container Event.Click onevent false;
+  Element.add_event_listener container Event.Dblclick onevent false;
+  Element.add_event_listener container Event.Input onevent false;
+  Element.add_event_listener container Event.Change onevent false;
+  Element.add_event_listener container Event.Focus onevent true;
+  Element.add_event_listener container Event.Blur onevent true;
+  Element.add_event_listener container Event.Mousemove onevent true;
+  Element.add_event_listener container Event.Mousedown onevent true;
+  Element.add_event_listener container Event.Keydown onevent true;
+  Element.add_event_listener container Event.Contextmenu onevent true;
   Cmd.run env.cmds process cmd0;
-  {dom = container; process}
+  {dom = container; process; get = (fun () -> !model); after_redraw}

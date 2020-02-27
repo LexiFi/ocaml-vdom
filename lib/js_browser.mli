@@ -4,6 +4,22 @@
 
 (** {1 Bindings for the DOM and other client-side Javascript APIs} *)
 
+module Promise: sig
+  [@@@js.stop]
+  type 'a t
+  val then_: ?error:(Ojs.t -> unit) -> success:('a -> unit) -> 'a t -> unit
+  [@@@js.start]
+
+  [@@@js.implem
+    type 'a t = (Ojs.t -> 'a) * Ojs.t
+
+    let t_of_js f x = (f, x)
+    val then_: Ojs.t -> success:(Ojs.t -> unit) -> error:(Ojs.t -> unit) option -> unit[@@js.call "then"]
+    let then_ ?error ~success (alpha_of_js, ojs) =
+      then_ ojs ~success:(fun x -> success (alpha_of_js x)) ~error
+  ]
+end
+
 
 module Storage : sig
   type t = private Ojs.t
@@ -107,6 +123,7 @@ module File : sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
   val name: t -> string
+  val size: t -> int
   val type_: t -> string
 end
 
@@ -122,11 +139,191 @@ module Event : sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
 
+  (* see https://developer.mozilla.org/en-US/docs/Web/Events *)
+  type kind =
+    | Abort [@js "abort"]
+    | Afterprint [@js "afterprint"]
+    | Animationend [@js "animationend"]
+    | Animationiteration [@js "animationiteration"]
+    | Animationstart [@js "animationstart"]
+    | Appinstalled [@js "appinstalled"]
+    | Audioend [@js "audioend"]
+    | Audioprocess [@js "audioprocess"]
+    | Audiostart [@js "audiostart"]
+    | Beforeprint [@js "beforeprint"]
+    | Beforeunload [@js "beforeunload"]
+    | BeginEvent [@js "beginEvent"]
+    | Blocked [@js "blocked"]
+    | Blur [@js "blur"]
+    | Boundary [@js "boundary"]
+    | Cached [@js "cached"]
+    | Canplay [@js "canplay"]
+    | Canplaythrough [@js "canplaythrough"]
+    | Change [@js "change"]
+    | Chargingchange [@js "chargingchange"]
+    | Chargingtimechange [@js "chargingtimechange"]
+    | Checking [@js "checking"]
+    | Click [@js "click"]
+    | Close [@js "close"]
+    | Complete [@js "complete"]
+    | Compositionend [@js "compositionend"]
+    | Compositionstart [@js "compositionstart"]
+    | Compositionupdate [@js "compositionupdate"]
+    | Contextmenu [@js "contextmenu"]
+    | Copy [@js "copy"]
+    | Cut [@js "cut"]
+    | Dblclick [@js "dblclick"]
+    | Devicechange [@js "devicechange"]
+    | Devicelight [@js "devicelight"]
+    | Devicemotion [@js "devicemotion"]
+    | Deviceorientation [@js "deviceorientation"]
+    | Deviceproximity [@js "deviceproximity"]
+    | Dischargingtimechange [@js "dischargingtimechange"]
+    | DOMActivate [@js "DOMActivate"]
+    | DOMAttributeNameChanged [@js "DOMAttributeNameChanged"]
+    | DOMAttrModified [@js "DOMAttrModified"]
+    | DOMCharacterDataModified [@js "DOMCharacterDataModified"]
+    | DOMContentLoaded [@js "DOMContentLoaded"]
+    | DOMElementNameChanged [@js "DOMElementNameChanged"]
+    | DOMFocusIn [@js "DOMFocusIn"]
+    | DOMFocusOut [@js "DOMFocusOut"]
+    | DOMNodeInserted [@js "DOMNodeInserted"]
+    | DOMNodeInsertedIntoDocument [@js "DOMNodeInsertedIntoDocument"]
+    | DOMNodeRemoved [@js "DOMNodeRemoved"]
+    | DOMNodeRemovedFromDocument [@js "DOMNodeRemovedFromDocument"]
+    | DOMSubtreeModified [@js "DOMSubtreeModified"]
+    | Downloading [@js "downloading"]
+    | Drag [@js "drag"]
+    | Dragend [@js "dragend"]
+    | Dragenter [@js "dragenter"]
+    | Dragleave [@js "dragleave"]
+    | Dragover [@js "dragover"]
+    | Dragstart [@js "dragstart"]
+    | Drop [@js "drop"]
+    | Durationchange [@js "durationchange"]
+    | Emptied [@js "emptied"]
+    | End [@js "end"]
+    | Ended [@js "ended"]
+    | EndEvent [@js "endEvent"]
+    | Error [@js "error"]
+    | Focus [@js "focus"]
+    | Focusin [@js "focusin"]
+    | Focusout [@js "focusout"]
+    | Fullscreenchange [@js "fullscreenchange"]
+    | Fullscreenerror [@js "fullscreenerror"]
+    | Gamepadconnected [@js "gamepadconnected"]
+    | Gamepaddisconnected [@js "gamepaddisconnected"]
+    | Gotpointercapture [@js "gotpointercapture"]
+    | Hashchange [@js "hashchange"]
+    | Input [@js "input"]
+    | Invalid [@js "invalid"]
+    | Keydown [@js "keydown"]
+    | Keypress [@js "keypress"]
+    | Keyup [@js "keyup"]
+    | Languagechange [@js "languagechange"]
+    | Levelchange [@js "levelchange"]
+    | Load [@js "load"]
+    | Loadeddata [@js "loadeddata"]
+    | Loadedmetadata [@js "loadedmetadata"]
+    | Loadend [@js "loadend"]
+    | Loadstart [@js "loadstart"]
+    | Lostpointercapture [@js "lostpointercapture"]
+    | Mark [@js "mark"]
+    | Message [@js "message"]
+    | Messageerror [@js "messageerror"]
+    | Mousedown [@js "mousedown"]
+    | Mouseenter [@js "mouseenter"]
+    | Mouseleave [@js "mouseleave"]
+    | Mousemove [@js "mousemove"]
+    | Mouseout [@js "mouseout"]
+    | Mouseover [@js "mouseover"]
+    | Mouseup [@js "mouseup"]
+    | Nomatch [@js "nomatch"]
+    | Notificationclick [@js "notificationclick"]
+    | Noupdate [@js "noupdate"]
+    | Obsolete [@js "obsolete"]
+    | Offline [@js "offline"]
+    | Online [@js "online"]
+    | Open [@js "open"]
+    | Orientationchange [@js "orientationchange"]
+    | Pagehide [@js "pagehide"]
+    | Pageshow [@js "pageshow"]
+    | Paste [@js "paste"]
+    | Pause [@js "pause"]
+    | Play [@js "play"]
+    | Playing [@js "playing"]
+    | Pointercancel [@js "pointercancel"]
+    | Pointerdown [@js "pointerdown"]
+    | Pointerenter [@js "pointerenter"]
+    | Pointerleave [@js "pointerleave"]
+    | Pointerlockchange [@js "pointerlockchange"]
+    | Pointerlockerror [@js "pointerlockerror"]
+    | Pointermove [@js "pointermove"]
+    | Pointerout [@js "pointerout"]
+    | Pointerover [@js "pointerover"]
+    | Pointerup [@js "pointerup"]
+    | Popstate [@js "popstate"]
+    | Progress [@js "progress"]
+    | Push [@js "push"]
+    | Pushsubscriptionchange [@js "pushsubscriptionchange"]
+    | Ratechange [@js "ratechange"]
+    | Readystatechange [@js "readystatechange"]
+    | RepeatEvent [@js "repeatEvent"]
+    | Reset [@js "reset"]
+    | Resize [@js "resize"]
+    | Resourcetimingbufferfull [@js "resourcetimingbufferfull"]
+    | Result [@js "result"]
+    | Resume [@js "resume"]
+    | Scroll [@js "scroll"]
+    | Seeked [@js "seeked"]
+    | Seeking [@js "seeking"]
+    | Select [@js "select"]
+    | Selectionchange [@js "selectionchange"]
+    | Selectstart [@js "selectstart"]
+    | Show [@js "show"]
+    | Slotchange [@js "slotchange"]
+    | Soundend [@js "soundend"]
+    | Soundstart [@js "soundstart"]
+    | Speechend [@js "speechend"]
+    | Speechstart [@js "speechstart"]
+    | Stalled [@js "stalled"]
+    | Start [@js "start"]
+    | Storage [@js "storage"]
+    | Submit [@js "submit"]
+    | Success [@js "success"]
+    | Suspend [@js "suspend"]
+    | SVGAbort [@js "SVGAbort"]
+    | SVGError [@js "SVGError"]
+    | SVGLoad [@js "SVGLoad"]
+    | SVGResize [@js "SVGResize"]
+    | SVGScroll [@js "SVGScroll"]
+    | SVGUnload [@js "SVGUnload"]
+    | SVGZoom [@js "SVGZoom"]
+    | Timeout [@js "timeout"]
+    | Timeupdate [@js "timeupdate"]
+    | Touchcancel [@js "touchcancel"]
+    | Touchend [@js "touchend"]
+    | Touchmove [@js "touchmove"]
+    | Touchstart [@js "touchstart"]
+    | Transitionend [@js "transitionend"]
+    | Unload [@js "unload"]
+    | Updateready [@js "updateready"]
+    | Upgradeneeded [@js "upgradeneeded"]
+    | Userproximity [@js "userproximity"]
+    | Versionchange [@js "versionchange"]
+    | Visibilitychange [@js "visibilitychange"]
+    | Voiceschanged [@js "voiceschanged"]
+    | Volumechange [@js "volumechange"]
+    | Waiting [@js "waiting"]
+    | Wheel [@js "wheel"]
+    | NonStandard of string [@js.default]
+  [@@js.enum]
+
   val target: t -> Ojs.t
   val prevent_default: t -> unit
   val type_: t -> string
 
-  val init_event: t -> string -> bool -> bool -> unit
+  val init_event: t -> kind -> bool -> bool -> unit
 
   val client_x: t -> int (* mouse *)
   val client_y: t -> int (* mouse *)
@@ -146,8 +343,8 @@ module Event : sig
   val ctrl_key: t -> bool (* key *)
   val shift_key: t -> bool (* key *)
   val which: t -> int    (* key *)
-  val code : t -> string (* key *)
-  val key : t -> string (* key *)
+  val code: t -> string (* key *)
+  val key: t -> string (* key *)
 
   val delta_y: t -> float (* wheel *)
   val delta_x: t -> float (* wheel *)
@@ -187,9 +384,9 @@ module Style : sig
   val t_to_js: t -> Ojs.t
   val set: t -> string -> string -> unit
   [@@js.custom
-     let set style prop value =
-       Ojs.set (t_to_js style) prop (Ojs.string_to_js value)
-  ]
+    let set style prop value =
+      Ojs.set (t_to_js style) prop (Ojs.string_to_js value)
+    ]
   val set_color: t -> string -> unit
   val set_border: t -> string -> unit
   val set_background: t -> string -> unit
@@ -200,13 +397,15 @@ module Style : sig
   val set_left: t -> string -> unit
   val set_top: t -> string -> unit
   val set_right: t -> string -> unit
+  val set_position: t -> string -> unit
   val set_cursor: t -> string -> unit
+  val set_display: t -> string -> unit
 
   val get: t -> string -> string
   [@@js.custom
     let get style prop =
       Ojs.string_of_js (Ojs.get (t_to_js style) prop)
-  ]
+    ]
 end
 
 module Element : sig
@@ -221,7 +420,7 @@ module Element : sig
   val null: t
   [@@js.custom
     let null = t_of_js Ojs.null
-  ]
+    ]
 
   val clone_node: t (* T *) -> bool -> t
   val contains: t (* T *) -> t (* T *) -> bool
@@ -241,13 +440,14 @@ module Element : sig
         else (remove_child x child; loop (first_child x))
       in
       loop (first_child x)
-  ]
+    ]
 
   val has_child_nodes: t (* T *) -> bool [@@js.call]
-  val add_event_listener: t (* T *) -> string -> (Event.t -> unit) -> bool -> unit
+  val add_event_listener: t (* T *) -> Event.kind -> (Event.t -> unit) -> bool -> unit
 
   val inner_text: t -> string
   val get_elements_by_tag_name: t -> string -> t array
+  val get_elements_by_class_name: t -> string -> t array
 
   val has_attribute: t -> string -> bool
   val get_attribute: t -> string -> string
@@ -286,15 +486,25 @@ module Element : sig
   val width: t -> int
   val height: t -> int
 
+  val offset_parent: t -> t option
+  val offset_top: t -> int
+  val offset_left: t -> int
+  val offset_width: t -> int
+  val offset_height: t -> int
+
   val scroll_top: t -> float
   val set_scroll_top: t -> float -> unit
 
   val focus: t -> unit
+  val blur: t -> unit
 
   val selection_start: t -> int
   val selection_end: t -> int
   val set_selection_start: t -> int -> unit
   val set_selection_end: t -> int -> unit
+
+  val remove: t -> unit
+  val click: t -> unit
 end
 
 module Document: sig
@@ -311,6 +521,8 @@ module Document: sig
   val get_elements_by_class_name: t -> string -> Element.t array
 
   val body: t -> Element.t
+  val document_element: t -> Element.t
+  val active_element: t -> Element.t
 
   val cookie: t -> string
   val set_cookie: t -> string -> unit
@@ -324,6 +536,8 @@ module Document: sig
   val exec_command: t -> string -> bool
 
   val query_selector: t -> string -> Element.t
+
+  val remove_all_selection_ranges: t -> unit [@@js.call "getSelection().removeAllRanges"]
 end
 
 module History : sig
@@ -380,15 +594,15 @@ module Window: sig
   val t_to_js: t -> Ojs.t
 
   type timeout_id
-  val timeout_id_of_js: Ojs.t -> timeout_id
-  val timeout_id_to_js: timeout_id -> Ojs.t
+  type interval_id
 
-  val add_event_listener: t -> string -> (Event.t -> unit) -> bool -> unit
+  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit
   val document: t -> Document.t
   val set_onload: t -> (unit -> unit) -> unit
-  val set_interval: t -> (unit -> unit) -> int -> timeout_id
+  val set_interval: t -> (unit -> unit) -> int -> interval_id
   val set_timeout: t -> (unit -> unit) -> int -> timeout_id
   val clear_timeout: t -> timeout_id -> unit
+  val clear_interval: t -> interval_id -> unit
   val request_animation_frame: t -> (float -> unit) -> unit
 
   val open_: t -> ?url:string -> ?name:string -> ?features:string -> ?replace:bool -> unit -> t
@@ -406,7 +620,14 @@ module Window: sig
   val history: t -> History.t
   val location : t -> Location.t
 
+  val frame_element: t -> Element.t
+
   val get_computed_style: t -> Element.t -> Style.t
+
+  val decode_URI_component: t -> string -> string
+
+  val event_source: Event.t -> t [@@js.get "source"] (* message *)
+  val post_message: t -> Ojs.t -> string -> unit
 end
 
 module IFrame: sig
@@ -416,9 +637,9 @@ end
 
 module JSON : sig
   val parse: string -> Ojs.t
-    [@@js.global "JSON.parse"]
+  [@@js.global "JSON.parse"]
   val stringify: Ojs.t -> string
-    [@@js.global "JSON.stringify"]
+  [@@js.global "JSON.stringify"]
 end
 
 module FileReader : sig
@@ -431,10 +652,11 @@ module FileReader : sig
 
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
-  val new_file_reader: unit -> t [@@js.new]
+  val create: unit -> t [@@js.new "FileReader"]
   val ready_state: t -> state
   val result: t -> string
   val set_onload: t -> (unit -> unit) -> unit
+  val read_as_binary_string: t -> File.t -> unit
   val read_as_text: t -> File.t -> unit
 end
 
@@ -446,9 +668,10 @@ module XHR: sig
 
   val create: unit -> t [@@js.new "XMLHttpRequest"]
   val open_: t -> string -> string -> unit
-  val send: t -> string -> unit
+  val send: t -> Ojs.t -> unit
   val set_request_header: t -> string -> string -> unit
   val get_response_header: t -> string -> string option
+  val set_response_type: t -> string -> unit
   val override_mime_type: t -> string -> unit
   val set_with_credentials: t -> bool -> unit (* starting from IE10 *)
 
@@ -459,11 +682,12 @@ module XHR: sig
     | Loading [@js 3]
     | Done [@js 4]
     | Other of int [@js.default]
-    [@@js.enum]
+  [@@js.enum]
 
   val status: t -> int
   val ready_state: t -> ready_state
   val response_text: t -> string
+  val response: t -> Ojs.t
 
   val set_onreadystatechange: t -> (unit -> unit) -> unit
 end
@@ -488,7 +712,7 @@ module WebSocket : sig
   val set_binary_type : t -> string -> unit
   val ready_state : t -> ready_state
 
-  val add_event_listener: t -> string -> (Event.t -> unit) -> bool -> unit
+  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit
 
   module CloseEvent : sig
     type t = Event.t
@@ -515,11 +739,11 @@ module Canvas : sig
 
   val get_context:?alpha:bool -> (*<canvas>*) Element.t -> context option
   [@@js.custom
-      val get_context_internal: Element.t -> string -> context_attribute -> context option
-         [@@js.call "getContext"]
-      let get_context ?(alpha = true) canvas =
-         get_context_internal canvas "2d" {alpha}
-  ]
+    val get_context_internal: Element.t -> string -> context_attribute -> context option
+    [@@js.call "getContext"]
+    let get_context ?(alpha = true) canvas =
+      get_context_internal canvas "2d" {alpha}
+      ]
 
   val to_data_URL: (*<canvas>*) Element.t -> string [@@js.call]
   val set_fill_style: context -> ([`Color of css_color | `Gradient of gradient][@js.union]) -> unit
@@ -554,7 +778,7 @@ end
 
 module Performance : sig
   val now: unit -> float
-    [@@js.global "performance.now"]
+  [@@js.global "performance.now"]
 end
 
 module Console : sig
@@ -580,7 +804,11 @@ module Blob : sig
   val options: ?type_:string -> ?endings:string -> unit -> options [@@js.builder]
 
   type t
-  val create: ([`ArrayBuffer of ArrayBuffer.t] [@js.union]) list -> ?options:options -> unit -> t [@@js.new "Blob"]
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val create: ([`ArrayBuffer of ArrayBuffer.t | `Other of Ojs.t] [@js.union]) list -> ?options:options -> unit -> t [@@js.new "Blob"]
+  val text: t -> unit -> string Promise.t
 end
 
 module ObjectURL : sig
@@ -620,7 +848,7 @@ module Svg : sig
     | Curveto_cubic_rel [@js 7]
     | Curveto_quadratic_abs [@js 8]
     | Curveto_quadratic_rel [@js 9]
-    [@@js.enum]
+  [@@js.enum]
 
   module PathSeg : sig
     type t

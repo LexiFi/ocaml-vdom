@@ -4,8 +4,6 @@
 
 (** Reusable VDOM "components" *)
 
-open Js_browser
-
 module SelectionList: sig
   open Vdom
 

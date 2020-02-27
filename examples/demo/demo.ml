@@ -398,6 +398,7 @@ let run_http_get ~url ~payload ~on_success () =
   let open XHR in
   let r = create () in
   open_ r "GET" url;
+  set_response_type r "text";
   set_onreadystatechange r
     (fun () ->
        match ready_state r with
@@ -405,7 +406,7 @@ let run_http_get ~url ~payload ~on_success () =
        | _ ->
            ()
       );
-  send r payload
+  send r (Ojs.string_to_js payload)
 
 let cmd_handler ctx = function
   | Http_get {url; payload; on_success} ->

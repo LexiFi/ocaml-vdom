@@ -51,6 +51,7 @@ end
 
 module Custom: sig
   type t = ..
+  type event = ..
 end
 
 
@@ -61,6 +62,7 @@ type mouse_event = {x: int; y: int; page_x: float; page_y: float; buttons: int; 
 type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type 'msg event_handler =
+  | MouseDown of (mouse_event -> 'msg)
   | Click of (mouse_event -> 'msg)
   | DblClick of (mouse_event -> 'msg)
   | Focus of 'msg
@@ -71,7 +73,9 @@ type 'msg event_handler =
   | ChangeChecked of (bool -> 'msg)
   | MouseMove of (mouse_event -> 'msg)
   | KeyDown of (key_event -> 'msg)
+  | KeyDownCancel of (key_event -> 'msg option)
   | ContextMenu of (mouse_event -> 'msg)
+  | CustomEvent of (Custom.event -> 'msg option)
 
 type prop_val =
   | String of string
@@ -90,25 +94,28 @@ type 'msg attribute =
 
 (** {3 Event handlers} *)
 
+val onmousedown: (mouse_event -> 'msg) -> 'msg attribute
 val onclick: (mouse_event -> 'msg) -> 'msg attribute
 val ondblclick: (mouse_event -> 'msg) -> 'msg attribute
 val oncontextmenu: (mouse_event -> 'msg) -> 'msg attribute
 val onfocus: 'msg -> 'msg attribute
 val onblur: 'msg -> 'msg attribute
 val oninput: (string -> 'msg) -> 'msg attribute
-    (** Pass the [value] property of the event target. *)
+(** Pass the [value] property of the event target. *)
 
 val onchange_checked: (bool -> 'msg) -> 'msg attribute
-    (** Pass the [checked] property of the event targer. *)
+(** Pass the [checked] property of the event targer. *)
 
 val onchange: (string -> 'msg) -> 'msg attribute
-    (** Pass the [value] property of the event target. *)
+(** Pass the [value] property of the event target. *)
 
 val onchange_index: (int -> 'msg) -> 'msg attribute
-    (** Pass the [selected_index] property of the event target. *)
+(** Pass the [selected_index] property of the event target. *)
 
 val onmousemove:  (mouse_event -> 'msg) -> 'msg attribute
 val onkeydown: (key_event -> 'msg) -> 'msg attribute
+val onkeydown_cancel: (key_event -> 'msg option) -> 'msg attribute
+val oncustomevent: (Custom.event -> 'msg option) -> 'msg attribute
 
 (** {3 Generic DOM properties} *)
 
@@ -122,7 +129,7 @@ val bool_prop: string -> bool -> 'msg attribute
 val float_prop: string -> float -> 'msg attribute
 
 val style: string -> string -> 'msg attribute
-    (** A sub-field of the "style" DOM property. *)
+(** A sub-field of the "style" DOM property. *)
 
 val attr: string -> string -> 'mg attribute
 val int_attr: string -> int -> 'msg attribute
@@ -152,12 +159,25 @@ val autofocus: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the
     element gets focused. *)
 
+val relative_dropdown: int -> 'msg attribute
+(** When this pseudo-attribute is first applied to an element, the
+    element is moved to a fixed position below its parents. *)
+
+val autofocus_counter: int -> 'msg attribute
+(** When this pseudo-attribute is first applied to an element, or applied
+    with a different counter as the previous time, the
+    element gets focused. *)
+
 (** {3 Events} *)
 
 type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
+
+val blur_event: event
 val input_event: string -> event
 val checked_event: bool -> event
 val change_event: string -> event
+val change_index_event: int -> event
+val custom_event: Custom.event -> event
 
 (** {2 VDOM} *)
 
