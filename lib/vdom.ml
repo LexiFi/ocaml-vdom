@@ -128,6 +128,30 @@ type +'msg vdom =
         f: ('a -> 'msg vdom);
         arg: 'a;
       } -> 'msg vdom
+  | Memo2:
+    {
+      key: string;
+      f: ('a -> 'b -> 'msg vdom);
+      arg1: 'a;
+      arg2: 'b;
+    } -> 'msg vdom
+  | Memo3:
+    {
+      key: string;
+      f: ('a -> 'b -> 'c -> 'msg vdom);
+      arg1: 'a;
+      arg2: 'b;
+      arg3: 'c;
+    } -> 'msg vdom
+  | Memo4:
+    {
+      key: string;
+      f: ('a -> 'b -> 'c -> 'd -> 'msg vdom);
+      arg1: 'a;
+      arg2: 'b;
+      arg3: 'c;
+      arg4: 'd;
+    } -> 'msg vdom
   | Custom of
       {
         key: string;
@@ -168,6 +192,9 @@ let map_attr f = function
 
 let map ?(key = "_map") f child = Map {key; f; child}
 let memo ?(key = "_memo") f arg = Memo {key; f; arg}
+let memo2 ?(key = "_memo") f arg1 arg2 = Memo2 {key; f; arg1; arg2}
+let memo3 ?(key = "_memo") f arg1 arg2 arg3 = Memo3 {key; f; arg1; arg2; arg3}
+let memo4 ?(key = "_memo") f arg1 arg2 arg3 arg4 = Memo4 {key; f; arg1; arg2; arg3; arg4}
 let custom ?(key ="_custom") ?(a = []) elt = Custom {key; elt; attributes = a}
 
 let return ?(c = []) model = model, Cmd.batch c

@@ -208,6 +208,30 @@ type +'msg vdom =
         f: ('a -> 'msg vdom);
         arg: 'a;
       } -> 'msg vdom
+  | Memo2:
+      {
+        key: string;
+        f: ('a -> 'b -> 'msg vdom);
+        arg1: 'a;
+        arg2: 'b;
+      } -> 'msg vdom
+  | Memo3:
+    {
+      key: string;
+      f: ('a -> 'b -> 'c -> 'msg vdom);
+      arg1: 'a;
+      arg2: 'b;
+      arg3: 'c;
+    } -> 'msg vdom
+  | Memo4:
+    {
+      key: string;
+      f: ('a -> 'b -> 'c -> 'd -> 'msg vdom);
+      arg1: 'a;
+      arg2: 'b;
+      arg3: 'c;
+      arg4: 'd;
+    } -> 'msg vdom
   | Custom of
       {
         key: string;
@@ -246,8 +270,16 @@ val memo: ?key:string -> ('a -> 'msg vdom) -> 'a -> 'msg vdom
     by a (partial) function application.  Instead, the functional
     argument should be a simple reference to a globally defined function.
 
-    [TODO: n-ary versions].
 *)
+
+val memo2: ?key:string -> ('a -> 'b -> 'msg vdom) -> 'a -> 'b -> 'msg vdom
+(** Binary version of memo. *)
+
+val memo3: ?key:string -> ('a -> 'b -> 'c -> 'msg vdom) -> 'a -> 'b -> 'c -> 'msg vdom
+(** Ternary version of memo. *)
+
+val memo4: ?key:string -> ('a -> 'b -> 'c -> 'd -> 'msg vdom) -> 'a -> 'b -> 'c -> 'd -> 'msg vdom
+(** Quaternary version of memo. *)
 
 val custom: ?key:string -> ?a:'msg attribute list -> Custom.t -> 'msg vdom
 (** A custom kind of node.  Usually not used directly. *)

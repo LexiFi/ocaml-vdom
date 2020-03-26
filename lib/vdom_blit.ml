@@ -123,7 +123,10 @@ let key_of_vdom = function
   | Text {key; _}
   | Element {key; _}
   | Map {key; _}
-  | Memo {key; _}
+  | Memo {key; _} 
+  | Memo2 {key; _} 
+  | Memo3 {key; _} 
+  | Memo4 {key; _} 
   | Custom {key; _} ->
       key
 
@@ -229,6 +232,15 @@ let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
 
   | Memo {f; arg; key = _} ->
       bmemo vdom (blit ctx (f arg))
+
+  | Memo2 {f; arg1; arg2; key = _} ->
+      bmemo vdom (blit ctx (f arg1 arg2))
+  
+  | Memo3 {f; arg1; arg2; arg3; key = _} ->
+      bmemo vdom (blit ctx (f arg1 arg2 arg3))
+
+  | Memo4 {f; arg1; arg2; arg3; arg4; key = _} ->
+      bmemo vdom (blit ctx (f arg1 arg2 arg3 arg4))
 
   | Custom {elt; attributes; key = _} ->
       let elt =
@@ -357,12 +369,35 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       let child = sync ctx parent c1 c2 in
       BMap {vdom; dom = get_dom child; child; f}
 
-  | BMemo {child = c1; vdom = Memo {f = f1; arg = a1; key = _}; _}, Memo {f = f2; arg = a2; key = _} ->
+  | BMemo {child; vdom = Memo {f = f1; arg = a1; key = _}; _}, Memo {f = f2; arg = a2; key = _} ->
       (* Is this safe !? *)
       if Obj.magic f1 == f2 && Obj.magic a1 == a2 then
-        bmemo vdom (Obj.magic (c1 : old_msg ctrl) : msg ctrl)
+        bmemo vdom (Obj.magic (child : old_msg ctrl) : msg ctrl)
       else
-        bmemo vdom (sync ctx parent c1 (f2 a2))
+        bmemo vdom (sync ctx parent child (f2 a2))
+
+  | BMemo {child; vdom = Memo2 {f = f1; arg1 = a1; arg2 = b1; key = _}; _}, Memo2 {f = f2; arg1 = a2; arg2 = b2; key = _} ->
+      (* Is this safe !? *)
+      if Obj.magic f1 == f2 && Obj.magic a1 == a2 && Obj.magic b1 == b2 then
+        bmemo vdom (Obj.magic (child : old_msg ctrl) : msg ctrl)
+      else
+        bmemo vdom (sync ctx parent child (f2 a2 b2))
+  
+  | BMemo {child; vdom = Memo3 {f = f1; arg1 = a1; arg2 = b1; arg3 = c1; key = _}; _}, 
+    Memo3 {f = f2; arg1 = a2; arg2 = b2; arg3 = c2; key = _} ->
+      (* Is this safe !? *)
+      if Obj.magic f1 == f2 && Obj.magic a1 == a2 && Obj.magic b1 == b2 && Obj.magic c1 == c2 then
+        bmemo vdom (Obj.magic (child : old_msg ctrl) : msg ctrl)
+      else        
+        bmemo vdom (sync ctx parent child (f2 a2 b2 c2))
+
+  | BMemo {child; vdom = Memo4 {f = f1; arg1 = a1; arg2 = b1; arg3 = c1; arg4 = d1; key = _}; _}, 
+    Memo4 {f = f2; arg1 = a2; arg2 = b2; arg3 = c2; arg4 = d2; key = _} ->
+      (* Is this safe !? *)
+      if Obj.magic f1 == f2 && Obj.magic a1 == a2 && Obj.magic b1 == b2 && Obj.magic c1 == c2 && Obj.magic d1 == d2 then
+        bmemo vdom (Obj.magic (child : old_msg ctrl) : msg ctrl)
+      else
+        bmemo vdom (sync ctx parent child (f2 a2 b2 c2 d2))
 
   | BCustom {vdom = Custom {key=key1; elt=arg1; attributes=a1}; elt}, Custom {key=key2; elt=arg2; attributes=a2}
     when key1 = key2 && (arg1 == arg2 || elt.sync arg2) ->
