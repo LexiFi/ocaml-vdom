@@ -38,17 +38,22 @@ module Custom = struct
     {
       dom: Js_browser.Element.t;
       sync: (Vdom.Custom.t -> bool);
+      dispose: (unit -> unit);
     }
 
   type ctx =
     {
+      parent: Js_browser.Element.t;
       send_event: (Vdom.event -> unit);
       after_redraw: ((unit -> unit) -> unit);
     }
 
   type handler = ctx -> Vdom.Custom.t -> t option
 
-  let make ~sync dom = {dom; sync}
+  let make ?(dispose = ignore) ~sync dom =
+    {dom; sync; dispose}
+
+  let parent ctx = ctx.parent
 
   let send_event ctx = ctx.send_event
 
@@ -62,10 +67,10 @@ module Custom = struct
         | None -> find_handler ctx x tl
         end
 
-  let lookup ~process_custom ~after_redraw elt handlers =
+  let lookup ~parent ~process_custom ~after_redraw elt handlers =
     let rec dom = lazy ((Lazy.force el).dom)
     and send_event e = process_custom (Lazy.force dom) e
-    and el = lazy (find_handler {send_event; after_redraw} elt handlers) in
+    and el = lazy (find_handler {parent; send_event; after_redraw} elt handlers) in
     Lazy.force el
 end
 
@@ -218,21 +223,22 @@ type ctx =
     after_redraw: ((unit -> unit) -> unit);
   }
 
-let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
+let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
+  fun ~parent ctx vdom ->
   match vdom with
   | Text {txt; key = _} ->
       BText {vdom; dom = Document.create_text_node document txt}
 
   | Map {f; child; key = _} ->
-      let child = blit ctx child in
+      let child = blit ~parent ctx child in
       BMap {vdom; dom = get_dom child; f; child}
 
   | Memo {f; arg; key = _} ->
-      bmemo vdom (blit ctx (f arg))
+      bmemo vdom (blit ~parent ctx (f arg))
 
   | Custom {elt; attributes; key = _} ->
       let elt =
-        try Custom.lookup ~process_custom:ctx.process_custom ~after_redraw:ctx.after_redraw elt ctx.custom_handlers
+        try Custom.lookup ~parent ~process_custom:ctx.process_custom ~after_redraw:ctx.after_redraw elt ctx.custom_handlers
         with exn ->
           Printf.printf "Error during vdom Custom %s lookup: %s\n%!"
             (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val elt))
@@ -248,7 +254,7 @@ let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
         if ns = "" then Document.create_element document tag
         else Document.create_element_ns document ns tag
       in
-      let children = List.map (blit ctx) children in
+      let children = List.map (blit ~parent:dom ctx) children in
       List.iter (fun c -> Element.append_child dom (get_dom c)) children;
       apply_attributes dom attributes;
       BElement {vdom; dom; children}
@@ -342,6 +348,14 @@ let sync_attributes dom a1 a2 =
     (choose attrs a1)
     (choose attrs a2)
 
+let rec dispose : type msg. msg ctrl -> unit = fun ctrl ->
+  match ctrl with
+  | BText _ -> ()
+  | BCustom {elt; _} -> elt.dispose ()
+  | BElement {children; _} -> List.iter dispose children
+  | BMap {child; _} -> dispose child
+  | BMemo {child; _} -> dispose child
+
 let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom -> msg ctrl =
   fun ctx parent old vdom ->
 
@@ -405,7 +419,9 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       Hashtbl.iter
         (fun _ i ->
            if debug then Printf.printf "remove %i\n%!" i;
-           Element.remove_child dom (get_dom old_children.(i));
+           let to_remove = old_children.(i) in
+           Element.remove_child dom (get_dom to_remove);
+           dispose to_remove
         )
         by_key;
 
@@ -419,7 +435,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
           if idx < 0 then begin
             (* create *)
             if debug then Printf.printf "create\n%!";
-            blit ctx new_children.(i)
+            blit ~parent ctx new_children.(i)
           end
           else begin
             if debug then Printf.printf "sync&move\n%!";
@@ -463,8 +479,9 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       BElement {vdom; dom; children}
 
   | _ ->
-      let x = blit ctx vdom in
+      let x = blit ~parent ctx vdom in
       Element.replace_child parent (get_dom x) (get_dom old);
+      dispose old;
       x
 
 let sync ctx parent old vdom =
@@ -587,7 +604,7 @@ let run (type msg model) ?(env = empty) ?container
       Printf.printf "Error during vdom view: %s\n%!" (Printexc.to_string exn);
       raise exn
   in
-  let x = blit ctx (view model0) in
+  let x = blit ~parent:container ctx (view model0) in
   Window.request_animation_frame window flush;
 
   let model = ref model0 in

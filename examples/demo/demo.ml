@@ -405,7 +405,7 @@ let run_http_get ~url ~payload ~on_success () =
        | Done -> on_success (response_text r)
        | _ ->
            ()
-      );
+    );
   send r (Ojs.string_to_js payload)
 
 let cmd_handler ctx = function

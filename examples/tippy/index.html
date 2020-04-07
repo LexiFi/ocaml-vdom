@@ -1,0 +1,68 @@
+<html>
+  <head>    
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <script src="main.js"></script>
+    <style>
+      html, body {
+        overflow: hidden;
+        height: 100%; 
+        width: 100%;
+        margin: 0;
+        padding: 0; 
+      }
+
+      div {
+        display: inline-block;
+      }
+
+      .root {
+        height: 100%; 
+        width: 100%;
+        padding: 10px;
+      }
+
+      .scrollable {
+        max-height: 100%;
+        max-width: 100%;
+        overflow: auto;
+      }
+
+      .column {       
+        display: flex;
+        flex-direction: column;
+        padding: 10px;
+      }
+
+      .row {        
+        display: flex;
+        flex-direction: row;
+      }
+
+      .tooltipable:hover {
+        text-decoration: underline;
+      }
+      
+      .tooltipable {        
+        cursor: pointer;
+      }
+    
+      p {
+        max-height: 200px !important;
+        padding: 15px;       
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      div[data-escaped], div[data-reference-hidden]  {
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>    
+  </head>
+  <body>
+  </body>
+</html>
