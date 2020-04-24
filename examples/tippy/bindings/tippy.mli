@@ -1,22 +1,17 @@
-
 type t
 
-val t_of_js: Ojs.t -> t
-val t_to_js: t -> Ojs.t
+val t_of_js : Ojs.t -> t
 
-type props = {
-  trigger: string option;
-}
+val t_to_js : t -> Ojs.t
 
-type options = {
-  content: string;
-  trigger: string option;
-}
+type props = { trigger: string option }
 
-val create: Js_browser.Element.t -> options -> t
-[@@js.global "tippy"]
+type options = { content: string; trigger: string option }
 
-val set_content: t -> string -> unit [@@js.call "setContent"]
-val set_props: t -> props -> unit [@@js.call "setProps"]
+val create : Js_browser.Element.t -> options -> t [@@js.global "tippy"]
 
-val destroy: t -> unit
+val set_content : t -> string -> unit [@@js.call "setContent"]
+
+val set_props : t -> props -> unit [@@js.call "setProps"]
+
+val destroy : t -> unit

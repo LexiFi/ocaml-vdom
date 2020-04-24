@@ -1,7 +1,9 @@
 module V = Vdom
 
 let source =
-  [ "Bérénice", {|
+  [
+    ( "Bérénice",
+      {|
 Ah ! cruel ! est-il temps de me le déclarer ?
 Qu’avez-vous fait ? Hélas ! je me suis crue aimée.
 Au plaisir de vous voir mon âme accoutumée
@@ -28,7 +30,9 @@ Lorsque Rome se tait, quand votre père expire,
 Lorsque tout l’univers fléchit à vos genoux,
 Enfin quand je n’ai plus à redouter que vous.
 |}
-  ; "Titus", {|
+    );
+    ( "Titus",
+      {|
 Et c’est moi seul aussi qui pouvais me détruire.
 Je pouvais vivre alors et me laisser séduire ;
 Mon cœur se gardait bien d’aller dans l’avenir
@@ -46,7 +50,9 @@ Je sens bien que sans vous je ne saurais plus vivre,
 Que mon cœur de moi-même est prêt à s’éloigner,
 Mais il ne s’agit plus de vivre, il faut régner.
 |}
-  ;"Bérénice", {|
+    );
+    ( "Bérénice",
+      {|
 Eh bien ! régnez, cruel, contentez votre gloire :
 Je ne dispute plus. J’attendais, pour vous croire,
 Que cette même bouche, après mille serments
@@ -67,19 +73,25 @@ L’ingrat, de mon départ consolé par avance,
 Daignera-t-il compter les jours de mon absence ?
 Ces jours si longs pour moi lui sembleront trop courts.
 |}
-  ;"Titus", {|
+    );
+    ( "Titus",
+      {|
 Je n’aurai pas, madame, à compter tant de jours :
 J’espère que bientôt la triste renommée
 Vous fera confesser que vous étiez aimée.
 Vous verrez que Titus n’a pu, sans expirer…
 |}
-  ; "Bérénice", {|
+    );
+    ( "Bérénice",
+      {|
 Ah, seigneur ! s’il est vrai, pourquoi nous séparer ?
 Je ne vous parle point d’un heureux hyménée.
 Rome à ne vous plus voir m’a-t-elle condamnée ?
 Pourquoi m’enviez-vous l’air que vous respirez ?
 |}
-  ; "Titus", {|
+    );
+    ( "Titus",
+      {|
 Hélas ! vous pouvez tout, madame : demeurez ;
 Je n’y résiste point. Mais je sens ma faiblesse :
 Il faudra vous combattre et vous craindre sans cesse,
@@ -88,11 +100,15 @@ Que vers vous à toute heure entraînent vos appas.
 Que dis-je ? en ce moment mon cœur, hors de lui-même,
 S’oublie, et se souvient seulement qu’il vous aime.
 |}
-  ; "Bérénice", {|
+    );
+    ( "Bérénice",
+      {|
 Eh bien, seigneur, eh bien, qu’en peut-il arriver ?
 Voyez-vous les Romains prêts à se soulever ?
 |}
-  ; "Titus", {|
+    );
+    ( "Titus",
+      {|
 Et qui sait de quel œil ils prendront cette injure ?
 S’ils parlent, si les cris succèdent au murmure,
 Faudra-t-il par le sang justifier mon choix ?
@@ -102,26 +118,30 @@ Faudra-t-il quelque jour payer leur patience ?
 Que n’oseront-ils point alors me demander ?
 Maintiendrai-je des lois que je ne puis garder ?
 |}
-  ;"Bérénice", {|
+    );
+    ("Bérénice", {|
 Vous ne comptez pour rien les pleurs de Bérénice !
-|}
-  ;"Titus", {|
+|});
+    ("Titus", {|
 Je les compte pour rien ! Ah ciel ! quelle injustice !
-|}
-  ;"Bérénice", {|
+|});
+    ( "Bérénice",
+      {|
 Quoi ! pour d’injustes lois que vous pouvez changer,
 En d’éternels chagrins vous-même vous plonger !
 Rome a ses droits, seigneur : n’avez-vous pas les vôtres ?
 Ses intérêts sont-ils plus sacrés que les nôtres ?
 Dites, parlez.
 |}
-  ;"Titus", {|
+    );
+    ("Titus", {|
 Hélas ! que vous me déchirez !
-|}
-  ;"Bérénice", {|
+|});
+    ("Bérénice", {|
 Vous êtes empereur, seigneur, et vous pleurez !
-|}
-  ;"Titus", {|
+|});
+    ( "Titus",
+      {|
 Oui, madame, il est vrai, je pleure, je soupire,
 Je frémis. Mais enfin, quand j’acceptai l’empire,
 Rome me fit jurer de maintenir ses droits :
@@ -131,23 +151,16 @@ Ah ! si vous remontiez jusques à sa naissance,
 Vous les verriez toujours à ses ordres soumis :
 L’un, jaloux de sa foi, va chez les ennemis
 |}
+    );
   ]
   |> List.map (fun (name, txt) ->
-      name, String.split_on_char '\n' txt
-            |> List.map String.trim
-            |> List.filter ((<>) "")
-            |> List.map (fun line ->
-                String.split_on_char ' ' line
-              )
-    )
+      ( name,
+        String.split_on_char '\n' txt
+        |> List.map String.trim
+        |> List.filter (( <> ) "")
+        |> List.map (fun line -> String.split_on_char ' ' line) ))
 
-
-type model = {
-  data: (string * string list list) list;
-  height: int;
-  width: int;
-}
-
+type model = { data: (string * string list list) list; height: int; width: int }
 
 let shuffle l =
   let a = Array.of_list l in
@@ -165,86 +178,77 @@ let shuffle l =
 
 let shuffle_model model =
   shuffle model
-  |> List.map
-    (fun (name, lines) ->
-       name, shuffle lines
-             |> List.map shuffle
-    )
+  |> List.map (fun (name, lines) -> (name, shuffle lines |> List.map shuffle))
 
-type msg =
-  | Shuffle
-  | Clear
-  | Reset
-  | Resize of {width: int; height: int}
+type msg = Shuffle | Clear | Reset | Resize of { width: int; height: int }
 
 let button msg label =
-  V.input ~a:[V.type_button; V.value label; V.onclick (fun _ -> msg)] []
+  V.input ~a:[ V.type_button; V.value label; V.onclick (fun _ -> msg) ] []
 
-let span ?a x = V.elt ?a "div" [x]
+let span ?a x = V.elt ?a "div" [ x ]
+
 let t = V.text
+
 let br = V.elt "br" []
+
 let p = V.elt "p"
 
 let col ?(a = []) = V.elt "div" ~a:(V.add_class "column" a)
+
 let row ?(a = []) = V.elt "div" ~a:(V.add_class "row" a)
 
 let tooltip txt l =
-  V.div ~a:(V.add_class "tooltipable" []) (Register.Tippy.tooltip ~trigger:[Click] txt :: l)
+  V.div
+    ~a:(V.add_class "tooltipable" [])
+    (Register.Tippy.tooltip ~trigger:[ Click ] txt :: l)
 
 let render_paragraph lines =
-  p ~a:(V.add_class "scrollable" [])
-    (List.map (fun words ->
-         List.map (fun w ->
-             [ tooltip w [t w]
-             ; t " "
-             ]
-           ) words @ [ [ br ]] |> List.flatten
-       )  lines
-     |> List.flatten)
+  p
+    ~a:(V.add_class "scrollable" [])
+    (List.map
+       (fun words ->
+          List.map (fun w -> [ tooltip w [ t w ]; t " " ]) words @ [ [ br ] ]
+          |> List.flatten
+       )
+       lines
+     |> List.flatten
+    )
 
 let resize =
-  Register.Window.onresize
-    (fun _ ->
-       let open Js_browser in
-       let height = Window.inner_height window |> int_of_float in
-       let width = Window.inner_width window |> int_of_float in
-       Some (Resize {height; width})
-    )
+  Register.Window.onresize (fun _ ->
+      let open Js_browser in
+      let height = Window.inner_height window |> int_of_float in
+      let width = Window.inner_width window |> int_of_float in
+      Some (Resize { height; width }))
 
 let view model =
-  let container =
-    if model.height > model.width then
-      col
-    else
-      row
-  in
-  V.div ~a:
-    (V.add_class "scrollable" (V.add_class "root" []))
-    ( resize :: col [button Shuffle "Shuffle !"; button Clear "Clear"; button Reset "Reset"; t (Printf.sprintf "h: %d w:%d" model.height model.width)] ::
-      List.map
-        (fun (name, txt) ->
-           container [
-             row [t name];
-             row [render_paragraph txt]
-           ]
-        ) model.data
+  let container = if model.height > model.width then col else row in
+  V.div
+    ~a:(V.add_class "scrollable" (V.add_class "root" []))
+    (resize
+     :: col
+       [
+         button Shuffle "Shuffle !";
+         button Clear "Clear";
+         button Reset "Reset";
+         t (Printf.sprintf "h: %d w:%d" model.height model.width);
+       ]
+     :: List.map
+       (fun (name, txt) ->
+          container [ row [ t name ]; row [ render_paragraph txt ] ]
+       )
+       model.data
     )
 
-let init =
-  V.return
-    {
-      data = source;
-      height = 1;
-      width = 0
-    }
+let init = V.return { data = source; height = 1; width = 0 }
 
 let update model = function
-  | Shuffle -> V.return {model with data = shuffle_model model.data}
-  | Resize {width; height} -> V.return {model with height; width}
+  | Shuffle -> V.return { model with data = shuffle_model model.data }
+  | Resize { width; height } -> V.return { model with height; width }
   | Reset -> init
-  | Clear -> V.return { data = []; height = 1; width = 0}
-let app =
-  V.app ~init ~view ~update ()
+  | Clear -> V.return { data = []; height = 1; width = 0 }
+
+let app = V.app ~init ~view ~update ()
 
 open Js_browser
 

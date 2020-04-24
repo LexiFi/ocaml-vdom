@@ -1,7 +1,8 @@
 (rule
-  (targets tippy.ml)
-  (deps tippy.mli)
-  (action (run %{bin:gen_js_api} %{deps})))
+ (targets tippy.ml)
+ (deps tippy.mli)
+ (action
+  (run %{bin:gen_js_api} %{deps})))
 
 (library
  (name bindings)
