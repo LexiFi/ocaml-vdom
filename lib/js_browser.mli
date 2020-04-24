@@ -608,7 +608,7 @@ module Window: sig
       add_event_listener_internal x k f c;
       fun () ->
         remove_event_listener_internal x k f c
-                                                                                      ]
+  ]
   val document: t -> Document.t
   val set_onload: t -> (unit -> unit) -> unit
   val set_interval: t -> (unit -> unit) -> int -> interval_id
