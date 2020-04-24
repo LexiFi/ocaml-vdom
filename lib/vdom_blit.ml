@@ -547,6 +547,7 @@ type ('model, 'msg) app = {
   process: ('msg -> unit);
   get: (unit -> 'model);
   after_redraw: (unit -> unit) -> unit;
+  dispose: (unit -> unit);
 }
 
 let dom x = x.dom
@@ -608,7 +609,7 @@ let run (type msg model) ?(env = empty) ?container
   Window.request_animation_frame window flush;
 
   let model = ref model0 in
-  let current = ref x in
+  let current = ref (Some x) in
 
 
   let pending_redraw = ref false in
@@ -617,10 +618,13 @@ let run (type msg model) ?(env = empty) ?container
        could avoid calling view/sync if model is the same as the previous one
        (because updates are now batched
     *)
-    pending_redraw := false;
-    let x = sync ctx container !current (view !model) in
-    current := x;
-    flush ()
+    match !current with
+    | None -> ()
+    | Some root ->
+      pending_redraw := false;
+      let x = sync ctx container root (view !model) in
+      current := Some x;
+      flush ()
   in
 
   let rec process msg =
@@ -701,24 +705,29 @@ let run (type msg model) ?(env = empty) ?container
             ()
       in
 
-      propagate (vdom_of_dom !current tgt);
+      Option.iter (fun root ->
+        propagate (vdom_of_dom root tgt);
+      ) !current;
 
       if ty = "input" || ty = "blur" then
         let f () =
-          match vdom_of_dom !current tgt with
-          (* note: the new vdom can be different after processing
-             the event above *)
-          (* !! This is probably broken now that we delay updating the vdom
-                with request_animation_frame !! *)
-          | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
-              List.iter
-                (function
-                  | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
-                  | Property ("checked", Bool s2) -> Element.set_checked tgt s2
-                  | _ -> ()
-                )
-                attributes
-          | _ -> ()
+          Option.iter
+            (fun root ->
+              match vdom_of_dom root tgt with
+              (* note: the new vdom can be different after processing
+                 the event above *)
+              (* !! This is probably broken now that we delay updating the vdom
+                    with request_animation_frame !! *)
+              | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+                  List.iter
+                    (function
+                      | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
+                      | Property ("checked", Bool s2) -> Element.set_checked tgt s2
+                      | _ -> ()
+                    )
+                    attributes
+              | _ -> ()
+            ) !current
         in
         if !pending_redraw then after_redraw f else f ()
     with exn ->
@@ -726,17 +735,20 @@ let run (type msg model) ?(env = empty) ?container
   in
 
   let process_custom tgt event =
-    begin match vdom_of_dom !current tgt with
-    | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
-        let select_handler = function
-          | Handler h -> event.ev h
-          | _ -> None
-        in
-        let msgs = List.filter_map select_handler attributes in
-        List.iter (fun msg -> process (mapper msg)) msgs
-    | _ ->
-        ()
-    end
+    Option.iter
+      (fun root ->
+        begin match vdom_of_dom root tgt with
+        | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
+            let select_handler = function
+              | Handler h -> event.ev h
+              | _ -> None
+            in
+            let msgs = List.filter_map select_handler attributes in
+            List.iter (fun msg -> process (mapper msg)) msgs
+        | _ ->
+            ()
+        end
+      ) !current
     (* Do we need to do something similar to the "input" case in onevent? *)
   in
   process_custom_fwd := process_custom;
@@ -751,4 +763,14 @@ let run (type msg model) ?(env = empty) ?container
   Element.add_event_listener container Event.Keydown onevent true;
   Element.add_event_listener container Event.Contextmenu onevent true;
   Cmd.run env.cmds process cmd0;
-  {dom = container; process; get = (fun () -> !model); after_redraw}
+  let dispose () =
+    Option.iter
+      (fun root ->
+        current := None;
+        dispose root;
+        Element.remove container
+      ) !current
+  in
+  {dom = container; process; get = (fun () -> !model); after_redraw; dispose}
+
+let dispose {dispose; _} = dispose ()

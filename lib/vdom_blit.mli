@@ -70,6 +70,10 @@ val run:
 (** Instantion a VDOM application into a concrete one, running
     into a fixed fresh DOM container node. *)
 
+val dispose: ('model, 'msg) app -> unit
+(** Dispose all the resources attached to an application and
+    remove its container from the DOM. *)
+
 val dom: ('model, 'msg) app -> Js_browser.Element.t
 (** Returns the main DOM node that serves as the container for a Vdom
     application. *)
