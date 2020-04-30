@@ -20,7 +20,7 @@ module Custom: sig
   type t
   (** A controller for a custom element. *)
 
-  val make: sync:(Vdom.Custom.t -> bool) -> Js_browser.Element.t -> t
+  val make: ?dispose:(unit -> unit) -> sync:(Vdom.Custom.t -> bool) -> Js_browser.Element.t -> t
   (** Create a custom controller out of DOM element.
 
       The [sync] function is in charge of updating the internal state
@@ -31,6 +31,8 @@ module Custom: sig
 
   type ctx
   (** Context for custom element handlers. *)
+
+  val parent: ctx -> Js_browser.Element.t
 
   val send_event: ctx -> Vdom.event -> unit
   (** Can only be called after the handler returns (typically in a DOM event callback). *)
@@ -67,6 +69,10 @@ val run:
   ('model, 'msg) app
 (** Instantion a VDOM application into a concrete one, running
     into a fixed fresh DOM container node. *)
+
+val dispose: ('model, 'msg) app -> unit
+(** Dispose all the resources attached to an application.
+    If the container was provided on run, it is emptied on disposal, otherwise it is removed from the DOM. *)
 
 val dom: ('model, 'msg) app -> Js_browser.Element.t
 (** Returns the main DOM node that serves as the container for a Vdom

@@ -27,7 +27,7 @@ module Initializable : sig
     unit ->
     ('a model, ('a, 'msg) msg) Vdom.app
 
-   (* Wrap an application that requires an initialization step to get
-      its initial state (generated as the outcome of a command). The wrapper
-      shows a wait message as long as the initial state is not available. *)
+  (* Wrap an application that requires an initialization step to get
+     its initial state (generated as the outcome of a command). The wrapper
+     shows a wait message as long as the initial state is not available. *)
 end

@@ -444,7 +444,18 @@ module Element : sig
 
   val has_child_nodes: t (* T *) -> bool [@@js.call]
   val add_event_listener: t (* T *) -> Event.kind -> (Event.t -> unit) -> bool -> unit
-
+  val add_cancellable_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> (unit -> unit)
+  [@@js.custom
+    val add_event_listener_internal: t -> Event.kind -> Ojs.t -> bool -> unit
+    [@@js.call "addEventListener"]
+    val remove_event_listener_internal: t -> Event.kind -> Ojs.t -> bool -> unit
+    [@@js.call "removeEventListener"]
+    let add_cancellable_event_listener x k f c =
+      let f = Ojs.fun_to_js 1 (fun x -> f (Event.t_of_js x)) in
+      add_event_listener_internal x k f c;
+      fun () ->
+        remove_event_listener_internal x k f c
+                                                                                      ]
   val inner_text: t -> string
   val get_elements_by_tag_name: t -> string -> t array
   val get_elements_by_class_name: t -> string -> t array
@@ -597,6 +608,18 @@ module Window: sig
   type interval_id
 
   val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit
+  val add_cancellable_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> (unit -> unit)
+  [@@js.custom
+    val add_event_listener_internal: t -> Event.kind -> Ojs.t -> bool -> unit
+    [@@js.call "addEventListener"]
+    val remove_event_listener_internal: t -> Event.kind -> Ojs.t -> bool -> unit
+    [@@js.call "removeEventListener"]
+    let add_cancellable_event_listener x k f c =
+      let f = Ojs.fun_to_js 1 (fun x -> f (Event.t_of_js x)) in
+      add_event_listener_internal x k f c;
+      fun () ->
+        remove_event_listener_internal x k f c
+                                                                                      ]
   val document: t -> Document.t
   val set_onload: t -> (unit -> unit) -> unit
   val set_interval: t -> (unit -> unit) -> int -> interval_id

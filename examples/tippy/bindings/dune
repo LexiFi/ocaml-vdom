@@ -1,0 +1,11 @@
+(rule
+ (targets tippy.ml)
+ (deps tippy.mli)
+ (action
+  (run %{bin:gen_js_api} %{deps})))
+
+(library
+ (name bindings)
+ (libraries gen_js_api ocaml-vdom)
+ (modes byte)
+ (js_of_ocaml))

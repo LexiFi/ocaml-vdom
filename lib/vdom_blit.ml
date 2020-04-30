@@ -38,17 +38,22 @@ module Custom = struct
     {
       dom: Js_browser.Element.t;
       sync: (Vdom.Custom.t -> bool);
+      dispose: (unit -> unit);
     }
 
   type ctx =
     {
+      parent: Js_browser.Element.t;
       send_event: (Vdom.event -> unit);
       after_redraw: ((unit -> unit) -> unit);
     }
 
   type handler = ctx -> Vdom.Custom.t -> t option
 
-  let make ~sync dom = {dom; sync}
+  let make ?(dispose = ignore) ~sync dom =
+    {dom; sync; dispose}
+
+  let parent ctx = ctx.parent
 
   let send_event ctx = ctx.send_event
 
@@ -62,10 +67,10 @@ module Custom = struct
         | None -> find_handler ctx x tl
         end
 
-  let lookup ~process_custom ~after_redraw elt handlers =
+  let lookup ~parent ~process_custom ~after_redraw elt handlers =
     let rec dom = lazy ((Lazy.force el).dom)
     and send_event e = process_custom (Lazy.force dom) e
-    and el = lazy (find_handler {send_event; after_redraw} elt handlers) in
+    and el = lazy (find_handler {parent; send_event; after_redraw} elt handlers) in
     Lazy.force el
 end
 
@@ -218,21 +223,22 @@ type ctx =
     after_redraw: ((unit -> unit) -> unit);
   }
 
-let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
+let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
+  fun ~parent ctx vdom ->
   match vdom with
   | Text {txt; key = _} ->
       BText {vdom; dom = Document.create_text_node document txt}
 
   | Map {f; child; key = _} ->
-      let child = blit ctx child in
+      let child = blit ~parent ctx child in
       BMap {vdom; dom = get_dom child; f; child}
 
   | Memo {f; arg; key = _} ->
-      bmemo vdom (blit ctx (f arg))
+      bmemo vdom (blit ~parent ctx (f arg))
 
   | Custom {elt; attributes; key = _} ->
       let elt =
-        try Custom.lookup ~process_custom:ctx.process_custom ~after_redraw:ctx.after_redraw elt ctx.custom_handlers
+        try Custom.lookup ~parent ~process_custom:ctx.process_custom ~after_redraw:ctx.after_redraw elt ctx.custom_handlers
         with exn ->
           Printf.printf "Error during vdom Custom %s lookup: %s\n%!"
             (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val elt))
@@ -248,7 +254,7 @@ let rec blit : type msg. ctx -> msg vdom -> msg ctrl = fun ctx vdom ->
         if ns = "" then Document.create_element document tag
         else Document.create_element_ns document ns tag
       in
-      let children = List.map (blit ctx) children in
+      let children = List.map (blit ~parent:dom ctx) children in
       List.iter (fun c -> Element.append_child dom (get_dom c)) children;
       apply_attributes dom attributes;
       BElement {vdom; dom; children}
@@ -342,6 +348,14 @@ let sync_attributes dom a1 a2 =
     (choose attrs a1)
     (choose attrs a2)
 
+let rec dispose : type msg. msg ctrl -> unit = fun ctrl ->
+  match ctrl with
+  | BText _ -> ()
+  | BCustom {elt; _} -> elt.dispose ()
+  | BElement {children; _} -> List.iter dispose children
+  | BMap {child; _} -> dispose child
+  | BMemo {child; _} -> dispose child
+
 let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom -> msg ctrl =
   fun ctx parent old vdom ->
 
@@ -405,7 +419,9 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       Hashtbl.iter
         (fun _ i ->
            if debug then Printf.printf "remove %i\n%!" i;
-           Element.remove_child dom (get_dom old_children.(i));
+           let to_remove = old_children.(i) in
+           Element.remove_child dom (get_dom to_remove);
+           dispose to_remove
         )
         by_key;
 
@@ -419,7 +435,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
           if idx < 0 then begin
             (* create *)
             if debug then Printf.printf "create\n%!";
-            blit ctx new_children.(i)
+            blit ~parent ctx new_children.(i)
           end
           else begin
             if debug then Printf.printf "sync&move\n%!";
@@ -463,8 +479,9 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       BElement {vdom; dom; children}
 
   | _ ->
-      let x = blit ctx vdom in
+      let x = blit ~parent ctx vdom in
       Element.replace_child parent (get_dom x) (get_dom old);
+      dispose old;
       x
 
 let sync ctx parent old vdom =
@@ -530,6 +547,7 @@ type ('model, 'msg) app = {
   process: ('msg -> unit);
   get: (unit -> 'model);
   after_redraw: (unit -> unit) -> unit;
+  dispose: (unit -> unit);
 }
 
 let dom x = x.dom
@@ -552,7 +570,6 @@ let merge envs =
     customs = List.concat (List.map (fun e -> e.customs) envs);
   }
 
-
 let global = ref empty
 
 let register e = global := merge [e; !global]
@@ -560,10 +577,10 @@ let register e = global := merge [e; !global]
 let run (type msg model) ?(env = empty) ?container
     ({init = (model0, cmd0); update; view} : (model, msg) Vdom.app) =
   let env = merge [env; !global] in
-  let container =
+  let container_created, container =
     match container with
-    | None -> Document.create_element document "div"
-    | Some container -> container
+    | None -> true, Document.create_element document "div"
+    | Some container -> false, container
   in
   let post_redraw = ref [] in
   let after_redraw f = post_redraw := f :: !post_redraw in
@@ -587,11 +604,11 @@ let run (type msg model) ?(env = empty) ?container
       Printf.printf "Error during vdom view: %s\n%!" (Printexc.to_string exn);
       raise exn
   in
-  let x = blit ctx (view model0) in
+  let x = blit ~parent:container ctx (view model0) in
   Window.request_animation_frame window flush;
 
   let model = ref model0 in
-  let current = ref x in
+  let current = ref (Some x) in
 
 
   let pending_redraw = ref false in
@@ -600,10 +617,13 @@ let run (type msg model) ?(env = empty) ?container
        could avoid calling view/sync if model is the same as the previous one
        (because updates are now batched
     *)
-    pending_redraw := false;
-    let x = sync ctx container !current (view !model) in
-    current := x;
-    flush ()
+    match !current with
+    | None -> ()
+    | Some root ->
+        pending_redraw := false;
+        let x = sync ctx container root (view !model) in
+        current := Some x;
+        flush ()
   in
 
   let rec process msg =
@@ -684,24 +704,29 @@ let run (type msg model) ?(env = empty) ?container
             ()
       in
 
-      propagate (vdom_of_dom !current tgt);
+      Option.iter (fun root ->
+          propagate (vdom_of_dom root tgt);
+        ) !current;
 
       if ty = "input" || ty = "blur" then
         let f () =
-          match vdom_of_dom !current tgt with
-          (* note: the new vdom can be different after processing
-             the event above *)
-          (* !! This is probably broken now that we delay updating the vdom
-                with request_animation_frame !! *)
-          | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
-              List.iter
-                (function
-                  | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
-                  | Property ("checked", Bool s2) -> Element.set_checked tgt s2
-                  | _ -> ()
-                )
-                attributes
-          | _ -> ()
+          Option.iter
+            (fun root ->
+               match vdom_of_dom root tgt with
+               (* note: the new vdom can be different after processing
+                  the event above *)
+               (* !! This is probably broken now that we delay updating the vdom
+                     with request_animation_frame !! *)
+               | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+                   List.iter
+                     (function
+                       | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
+                       | Property ("checked", Bool s2) -> Element.set_checked tgt s2
+                       | _ -> ()
+                     )
+                     attributes
+               | _ -> ()
+            ) !current
         in
         if !pending_redraw then after_redraw f else f ()
     with exn ->
@@ -709,29 +734,55 @@ let run (type msg model) ?(env = empty) ?container
   in
 
   let process_custom tgt event =
-    begin match vdom_of_dom !current tgt with
-    | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
-        let select_handler = function
-          | Handler h -> event.ev h
-          | _ -> None
-        in
-        let msgs = List.filter_map select_handler attributes in
-        List.iter (fun msg -> process (mapper msg)) msgs
-    | _ ->
-        ()
-    end
-    (* Do we need to do something similar to the "input" case in onevent? *)
+    Option.iter
+      (fun root ->
+         begin match vdom_of_dom root tgt with
+         | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
+             let select_handler = function
+               | Handler h -> event.ev h
+               | _ -> None
+             in
+             let msgs = List.filter_map select_handler attributes in
+             List.iter (fun msg -> process (mapper msg)) msgs
+         | _ ->
+             ()
+         end
+      ) !current
+      (* Do we need to do something similar to the "input" case in onevent? *)
   in
   process_custom_fwd := process_custom;
-  Element.add_event_listener container Event.Click onevent false;
-  Element.add_event_listener container Event.Dblclick onevent false;
-  Element.add_event_listener container Event.Input onevent false;
-  Element.add_event_listener container Event.Change onevent false;
-  Element.add_event_listener container Event.Focus onevent true;
-  Element.add_event_listener container Event.Blur onevent true;
-  Element.add_event_listener container Event.Mousemove onevent true;
-  Element.add_event_listener container Event.Mousedown onevent true;
-  Element.add_event_listener container Event.Keydown onevent true;
-  Element.add_event_listener container Event.Contextmenu onevent true;
+
+  let listeners =
+    List.map
+      (fun event ->
+        Element.add_cancellable_event_listener container event onevent false
+      )
+      [
+        Event.Click;
+        Event.Dblclick;
+        Event.Input;
+        Event.Change;
+        Event.Focus;
+        Event.Blur;
+        Event.Mousemove;
+        Event.Mousedown;
+        Event.Keydown;
+        Event.Contextmenu;
+      ]
+  in
   Cmd.run env.cmds process cmd0;
-  {dom = container; process; get = (fun () -> !model); after_redraw}
+  let dispose () =
+    Option.iter
+      (fun root ->
+         current := None;
+         dispose root;
+         List.iter (fun f -> f ()) listeners;
+         if container_created then
+           Element.remove container
+         else
+           Element.set_inner_HTML container ""
+      ) !current
+  in
+  {dom = container; process; get = (fun () -> !model); after_redraw; dispose}
+
+let dispose {dispose; _} = dispose ()

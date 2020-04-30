@@ -405,7 +405,7 @@ let run_http_get ~url ~payload ~on_success () =
        | Done -> on_success (response_text r)
        | _ ->
            ()
-      );
+    );
   send r (Ojs.string_to_js payload)
 
 let cmd_handler ctx = function
@@ -420,11 +420,25 @@ let cmd_handler ctx = function
 
 let () = Vdom_blit.(register (cmd {f = cmd_handler}))
 
+let test_dispose = true
 
 let run () =
+  let body = Document.body document in
   let r app =
-    Vdom_blit.run app |> Vdom_blit.dom |> Element.append_child (Document.body document);
-    Element.append_child (Document.body document) (Document.create_element document "hr")
+    let container = Document.create_element document "div" in
+    let app = Vdom_blit.run ~container app in
+    Element.append_child body container;
+    if test_dispose then begin
+      let button = Document.create_element document "button" in
+      Element.append_child button (Document.create_text_node document "Dispose Application");
+      Element.add_event_listener button Event.Click (fun _ ->
+          Element.remove button;
+          Vdom_blit.dispose app;
+          Element.append_child container (Document.create_text_node document "Disposed");
+        ) false;
+      Element.append_child body button;
+    end;
+    Element.append_child body (Document.create_element document "hr");
   in
 
   r Talk1.app;
