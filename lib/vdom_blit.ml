@@ -570,7 +570,6 @@ let merge envs =
     customs = List.concat (List.map (fun e -> e.customs) envs);
   }
 
-
 let global = ref empty
 
 let register e = global := merge [e; !global]
@@ -578,10 +577,10 @@ let register e = global := merge [e; !global]
 let run (type msg model) ?(env = empty) ?container
     ({init = (model0, cmd0); update; view} : (model, msg) Vdom.app) =
   let env = merge [env; !global] in
-  let container =
+  let container_created, container =
     match container with
-    | None -> Document.create_element document "div"
-    | Some container -> container
+    | None -> true, Document.create_element document "div"
+    | Some container -> false, container
   in
   let post_redraw = ref [] in
   let after_redraw f = post_redraw := f :: !post_redraw in
@@ -621,10 +620,10 @@ let run (type msg model) ?(env = empty) ?container
     match !current with
     | None -> ()
     | Some root ->
-      pending_redraw := false;
-      let x = sync ctx container root (view !model) in
-      current := Some x;
-      flush ()
+        pending_redraw := false;
+        let x = sync ctx container root (view !model) in
+        current := Some x;
+        flush ()
   in
 
   let rec process msg =
@@ -706,27 +705,27 @@ let run (type msg model) ?(env = empty) ?container
       in
 
       Option.iter (fun root ->
-        propagate (vdom_of_dom root tgt);
-      ) !current;
+          propagate (vdom_of_dom root tgt);
+        ) !current;
 
       if ty = "input" || ty = "blur" then
         let f () =
           Option.iter
             (fun root ->
-              match vdom_of_dom root tgt with
-              (* note: the new vdom can be different after processing
-                 the event above *)
-              (* !! This is probably broken now that we delay updating the vdom
-                    with request_animation_frame !! *)
-              | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
-                  List.iter
-                    (function
-                      | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
-                      | Property ("checked", Bool s2) -> Element.set_checked tgt s2
-                      | _ -> ()
-                    )
-                    attributes
-              | _ -> ()
+               match vdom_of_dom root tgt with
+               (* note: the new vdom can be different after processing
+                  the event above *)
+               (* !! This is probably broken now that we delay updating the vdom
+                     with request_animation_frame !! *)
+               | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+                   List.iter
+                     (function
+                       | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
+                       | Property ("checked", Bool s2) -> Element.set_checked tgt s2
+                       | _ -> ()
+                     )
+                     attributes
+               | _ -> ()
             ) !current
         in
         if !pending_redraw then after_redraw f else f ()
@@ -737,38 +736,51 @@ let run (type msg model) ?(env = empty) ?container
   let process_custom tgt event =
     Option.iter
       (fun root ->
-        begin match vdom_of_dom root tgt with
-        | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
-            let select_handler = function
-              | Handler h -> event.ev h
-              | _ -> None
-            in
-            let msgs = List.filter_map select_handler attributes in
-            List.iter (fun msg -> process (mapper msg)) msgs
-        | _ ->
-            ()
-        end
+         begin match vdom_of_dom root tgt with
+         | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
+             let select_handler = function
+               | Handler h -> event.ev h
+               | _ -> None
+             in
+             let msgs = List.filter_map select_handler attributes in
+             List.iter (fun msg -> process (mapper msg)) msgs
+         | _ ->
+             ()
+         end
       ) !current
-    (* Do we need to do something similar to the "input" case in onevent? *)
+      (* Do we need to do something similar to the "input" case in onevent? *)
   in
   process_custom_fwd := process_custom;
-  Element.add_event_listener container Event.Click onevent false;
-  Element.add_event_listener container Event.Dblclick onevent false;
-  Element.add_event_listener container Event.Input onevent false;
-  Element.add_event_listener container Event.Change onevent false;
-  Element.add_event_listener container Event.Focus onevent true;
-  Element.add_event_listener container Event.Blur onevent true;
-  Element.add_event_listener container Event.Mousemove onevent true;
-  Element.add_event_listener container Event.Mousedown onevent true;
-  Element.add_event_listener container Event.Keydown onevent true;
-  Element.add_event_listener container Event.Contextmenu onevent true;
+
+  let listeners =
+    List.map
+      (fun event ->
+        Element.add_cancellable_event_listener container event onevent false
+      )
+      [
+        Event.Click;
+        Event.Dblclick;
+        Event.Input;
+        Event.Change;
+        Event.Focus;
+        Event.Blur;
+        Event.Mousemove;
+        Event.Mousedown;
+        Event.Keydown;
+        Event.Contextmenu;
+      ]
+  in
   Cmd.run env.cmds process cmd0;
   let dispose () =
     Option.iter
       (fun root ->
-        current := None;
-        dispose root;
-        Element.remove container
+         current := None;
+         dispose root;
+         List.iter (fun f -> f ()) listeners;
+         if container_created then
+           Element.remove container
+         else
+           Element.set_inner_HTML container ""
       ) !current
   in
   {dom = container; process; get = (fun () -> !model); after_redraw; dispose}
