@@ -11,6 +11,7 @@ Next release
 - GPR#24: Make the vdom type covariant in the 'msg parameter (contributed by 'copy')
 - GPR#25: Add MouseEvent.{movementX,movementY} (contributed by 'copy')
 - GRP#30: Port build to dune + adds travis support
+- GRP#32: Disposing custom elements
 
 0.1
 ===
