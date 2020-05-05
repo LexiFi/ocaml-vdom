@@ -754,20 +754,20 @@ let run (type msg model) ?(env = empty) ?container
 
   let listeners =
     List.map
-      (fun event ->
-        Element.add_cancellable_event_listener container event onevent false
+      (fun (event, capture) ->
+        Element.add_cancellable_event_listener container event onevent capture
       )
       [
-        Event.Click;
-        Event.Dblclick;
-        Event.Input;
-        Event.Change;
-        Event.Focus;
-        Event.Blur;
-        Event.Mousemove;
-        Event.Mousedown;
-        Event.Keydown;
-        Event.Contextmenu;
+        Event.Click, false;
+        Event.Dblclick, false;
+        Event.Input, false;
+        Event.Change, false;
+        Event.Focus, true;
+        Event.Blur, true;
+        Event.Mousemove, true;
+        Event.Mousedown, true;
+        Event.Keydown, true;
+        Event.Contextmenu, true;
       ]
   in
   Cmd.run env.cmds process cmd0;
