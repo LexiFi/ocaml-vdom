@@ -1,6 +1,9 @@
 Next release
 ============
 
+0.2
+===
+
 - GPR#14: delay rendering (view + DOM updates) with requestAnimationFrame
 - GPR#15: click/dblclick handlers take a mouse_event argument (API change)
 - GPR#16: improve support for checkboxes

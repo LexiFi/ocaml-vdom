@@ -23,8 +23,6 @@ Dependencies
 
   - js_of_ocaml
 
-  - findlib
-
   - gen_js_api
 
 
@@ -32,11 +30,8 @@ Dependencies
 Installation (with OPAM)
 ------------------------
 
-ocaml-vdom has not yet been pushed to the OPAM repository.  You can still use OPAM
-to install its current development version with:
-
 ````
-opam pin add ocaml-vdom git://github.com/lexifi/ocaml-vdom.git
+opam install ocaml-vdom
 ````
 
 
