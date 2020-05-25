@@ -1,4 +1,4 @@
-opam-version: "1.2"
+opam-version: "2.0"
 name: "ocaml-vdom"
 version: "0.2"
 maintainer: "Alain Frisch <alain.frisch@lexifi.com>"
@@ -8,14 +8,14 @@ authors: [
 homepage: "https://github.com/LexiFi/ocaml-vdom"
 bug-reports: "https://github.com/LexiFi/ocaml-vdom/issues"
 license: "MIT"
-dev-repo: "https://github.com/LexiFi/ocaml-vdom.git"
+dev-repo: "git+https://github.com/LexiFi/ocaml-vdom.git"
 build: [["dune" "build" "-p" name "-j" jobs]]
 depends: [
+  "ocaml" {>= "4.08.0"}
   "dune" {build & >= "2.0"}
   "js_of_ocaml-compiler"
-  "gen_js_api" { >= "1.0.6" }
+  "gen_js_api" {>= "1.0.6"}
 ]
-available: [ ocaml-version >= "4.08.0" ]
 synopsis: "DOM and VDOM for OCaml"
 description: """
 This package contains:
