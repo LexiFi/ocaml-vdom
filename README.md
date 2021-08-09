@@ -200,7 +200,7 @@ The Javascript code can then be used from a simple HTML file such as:
 </html>
 ````
 
-Examples: [`Demo`](examples/demo.ml), [`Counters`](examples/counters.ml)
+Examples: [`Demo`](examples/demo/demo.ml), [`Counters`](examples/counters/counters.ml)
 
 Third-party examples:
   `TodoMVC`
