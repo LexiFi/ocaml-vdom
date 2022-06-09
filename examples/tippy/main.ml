@@ -185,8 +185,6 @@ type msg = Shuffle | Clear | Reset | Resize of { width: int; height: int }
 let button msg label =
   V.input ~a:[ V.type_button; V.value label; V.onclick (fun _ -> msg) ] []
 
-let span ?a x = V.elt ?a "div" [ x ]
-
 let t = V.text
 
 let br = V.elt "br" []

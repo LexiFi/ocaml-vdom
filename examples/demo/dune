@@ -1,14 +1,9 @@
 (executable
  (name demo)
  (libraries vdom)
- (modes js)
- (link_flags -no-check-prims))
+ (modes js))
 
-(rule
- (targets demo.js)
- (deps demo.bc.js)
- (action
-  (run cp %{deps} %{targets})))
+(rule (copy demo.bc.js demo.js))
 
 (alias
  (name DEFAULT)

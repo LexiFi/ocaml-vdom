@@ -14,4 +14,4 @@ val set_content : t -> string -> unit [@@js.call "setContent"]
 
 val set_props : t -> props -> unit [@@js.call "setProps"]
 
-val destroy : t -> unit
+val destroy : t -> unit [@@js.call]

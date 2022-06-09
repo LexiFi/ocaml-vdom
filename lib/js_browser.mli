@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright 2016 by LexiFi.                                                                         *)
+(* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
 (** {1 Bindings for the DOM and other client-side Javascript APIs} *)
 
@@ -20,17 +20,16 @@ module Promise: sig
   ]
 end
 
-
 module Storage : sig
   type t = private Ojs.t
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
-  val length: t -> int
-  val key: t -> int -> string option
-  val get_item: t -> string -> string option
-  val set_item: t -> string -> string -> unit
-  val remove_item: t -> string -> unit
-  val clear: t -> unit
+  val length: t -> int [@@js.get]
+  val key: t -> int -> string option [@@js.call]
+  val get_item: t -> string -> string option [@@js.call]
+  val set_item: t -> string -> string -> unit [@@js.call]
+  val remove_item: t -> string -> unit [@@js.call]
+  val clear: t -> unit [@@js.call]
 end
 
 module RegExp : sig
@@ -52,14 +51,16 @@ module JsString : sig
   val to_string: t -> string
   [@@js.custom let to_string x = Ojs.string_of_js x]
 
+  val length: t -> int [@@js.get]
+  val char_code_at: t -> int -> int [@@js.call]
   val to_lower_case: t -> t [@@js.call]
   val to_upper_case: t -> t [@@js.call]
-  val concat: t -> (t list [@js.variadic]) -> t
-  val includes: t -> t -> bool
-  val ends_with: t -> t -> bool
-  val index_of: t -> t -> int
-  val repeat: t -> int -> t
-  val search: t -> RegExp.t -> int
+  val concat: t -> (t list [@js.variadic]) -> t [@@js.call]
+  val includes: t -> t -> bool [@@js.call]
+  val ends_with: t -> t -> bool [@@js.call]
+  val index_of: t -> t -> int [@@js.call]
+  val repeat: t -> int -> t [@@js.call]
+  val search: t -> RegExp.t -> int [@@js.call]
   val trim: t -> t [@@js.call]
 end
 
@@ -122,16 +123,17 @@ module File : sig
   type t = private Ojs.t
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
-  val name: t -> string
-  val size: t -> int
-  val type_: t -> string
+  val name: t -> string [@@js.get]
+  val size: t -> int [@@js.get]
+  val type_: t -> string [@@js.get]
 end
 
 module DataTransfer : sig
   type t = private Ojs.t
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
-  val files : t -> File.t list
+  val files: t -> File.t list [@@js.get]
+  val get_data: t -> string -> string [@@js.call]
 end
 
 module Event : sig
@@ -319,39 +321,40 @@ module Event : sig
     | NonStandard of string [@js.default]
   [@@js.enum]
 
-  val target: t -> Ojs.t
-  val prevent_default: t -> unit
-  val type_: t -> string
+  val target: t -> Ojs.t [@@js.get]
+  val prevent_default: t -> unit [@@js.call]
+  val type_: t -> string [@@js.get]
 
-  val init_event: t -> kind -> bool -> bool -> unit
+  val init_event: t -> kind -> bool -> bool -> unit [@@js.call]
 
-  val client_x: t -> int (* mouse *)
-  val client_y: t -> int (* mouse *)
+  val client_x: t -> int (* mouse *) [@@js.get]
+  val client_y: t -> int (* mouse *) [@@js.get]
 
-  val page_x: t -> float (* mouse *)
-  val page_y: t -> float (* mouse *)
+  val page_x: t -> float (* mouse *) [@@js.get]
+  val page_y: t -> float (* mouse *) [@@js.get]
 
-  val screen_x: t -> int (* mouse *)
-  val screen_y: t -> int (* mouse *)
+  val screen_x: t -> int (* mouse *) [@@js.get]
+  val screen_y: t -> int (* mouse *) [@@js.get]
 
-  val movement_x: t -> int (* mouse *)
-  val movement_y: t -> int (* mouse *)
+  val movement_x: t -> int (* mouse *) [@@js.get]
+  val movement_y: t -> int (* mouse *) [@@js.get]
 
-  val buttons: t -> int  (* mouse *)
+  val buttons: t -> int  (* mouse *) [@@js.get]
 
-  val alt_key: t -> bool (* key *)
-  val ctrl_key: t -> bool (* key *)
-  val shift_key: t -> bool (* key *)
-  val which: t -> int    (* key *)
-  val code: t -> string (* key *)
-  val key: t -> string (* key *)
+  val alt_key: t -> bool (* key *) [@@js.get]
+  val ctrl_key: t -> bool (* key *) [@@js.get]
+  val shift_key: t -> bool (* key *) [@@js.get]
+  val which: t -> int    (* key *) [@@js.get]
+  val code: t -> string (* key *) [@@js.get]
+  val key: t -> string (* key *) [@@js.get]
 
-  val delta_y: t -> float (* wheel *)
-  val delta_x: t -> float (* wheel *)
+  val delta_y: t -> float (* wheel *) [@@js.get]
+  val delta_x: t -> float (* wheel *) [@@js.get]
 
-  val data_transfer: t -> DataTransfer.t (* drag/drop*)
-  val data: t -> Ojs.t (* message *)
-  val origin: t -> string (* message *)
+  val data_transfer: t -> DataTransfer.t (* drag/drop *) [@@js.get]
+  val clipboard_data: t -> DataTransfer.t (* paste *) [@@js.get]
+  val data: t -> Ojs.t (* message *) [@@js.get]
+  val origin: t -> string (* message *) [@@js.get]
 end
 
 module Rect : sig
@@ -359,12 +362,12 @@ module Rect : sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
 
-  val height: t -> float
-  val width: t -> float
-  val left: t -> float
-  val right: t -> float
-  val top: t -> float
-  val bottom: t -> float
+  val height: t -> float [@@js.get]
+  val width: t -> float [@@js.get]
+  val left: t -> float [@@js.get]
+  val right: t -> float [@@js.get]
+  val top: t -> float [@@js.get]
+  val bottom: t -> float [@@js.get]
 end
 
 module SVGRect : sig
@@ -372,10 +375,10 @@ module SVGRect : sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
 
-  val x: t -> float
-  val y: t -> float
-  val height: t -> float
-  val width: t -> float
+  val x: t -> float [@@js.get]
+  val y: t -> float [@@js.get]
+  val height: t -> float [@@js.get]
+  val width: t -> float [@@js.get]
 end
 
 module Style : sig
@@ -385,27 +388,44 @@ module Style : sig
   val set: t -> string -> string -> unit
   [@@js.custom
     let set style prop value =
-      Ojs.set (t_to_js style) prop (Ojs.string_to_js value)
+      Ojs.set_prop_ascii (t_to_js style) prop (Ojs.string_to_js value)
     ]
-  val set_color: t -> string -> unit
-  val set_border: t -> string -> unit
-  val set_background: t -> string -> unit
-  val set_background_color: t -> string -> unit
-  val set_height: t -> string -> unit
-  val set_width: t -> string -> unit
-  val set_bottom: t -> string -> unit
-  val set_left: t -> string -> unit
-  val set_top: t -> string -> unit
-  val set_right: t -> string -> unit
-  val set_position: t -> string -> unit
-  val set_cursor: t -> string -> unit
-  val set_display: t -> string -> unit
+  val set_color: t -> string -> unit [@@js.set]
+  val set_border: t -> string -> unit [@@js.set]
+  val set_background: t -> string -> unit [@@js.set]
+  val set_background_color: t -> string -> unit [@@js.set]
+  val set_height: t -> string -> unit [@@js.set]
+  val set_width: t -> string -> unit [@@js.set]
+  val set_bottom: t -> string -> unit [@@js.set]
+  val set_left: t -> string -> unit [@@js.set]
+  val set_top: t -> string -> unit [@@js.set]
+  val set_right: t -> string -> unit [@@js.set]
+  val set_position: t -> string -> unit [@@js.set]
+  val set_cursor: t -> string -> unit [@@js.set]
+  val set_display: t -> string -> unit [@@js.set]
 
   val get: t -> string -> string
   [@@js.custom
     let get style prop =
-      Ojs.string_of_js (Ojs.get (t_to_js style) prop)
+      Ojs.string_of_js (Ojs.get_prop_ascii (t_to_js style) prop)
     ]
+  val unset: t -> string -> unit
+  [@@js.custom
+    let unset style prop =
+      Ojs.set_prop_ascii (t_to_js style) prop Ojs.null
+    ]
+end
+
+module ClassList : sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val add: t -> string -> unit [@@js.call]
+  val remove: t -> string -> unit [@@js.call]
+  val contains: t -> string -> bool [@@js.call]
+  val replace: t -> string -> string -> unit [@@js.call]
+  val toggle: t -> string -> bool -> bool [@@js.call]
 end
 
 module Element : sig
@@ -422,15 +442,15 @@ module Element : sig
     let null = t_of_js Ojs.null
     ]
 
-  val clone_node: t (* T *) -> bool -> t
-  val contains: t (* T *) -> t (* T *) -> bool
-  val append_child: t -> t (* T *) -> unit
-  val insert_before: t -> t (* T *) -> t (* T *) -> unit
-  val replace_child: t -> t (* T *) -> t (* T *) -> unit
-  val remove_child: t -> t (* T *) -> unit
-  val first_child: t -> t (* May return Element.null *)
-  val last_child: t -> t (* May return Element.null *)
-  val next_sibling: t (* T *) -> t (* May return Element.null *)
+  val clone_node: t (* T *) -> bool -> t [@@js.call]
+  val contains: t (* T *) -> t (* T *) -> bool [@@js.call]
+  val append_child: t -> t (* T *) -> unit [@@js.call]
+  val insert_before: t -> t (* T *) -> t (* T *) -> unit [@@js.call]
+  val replace_child: t -> t (* T *) -> t (* T *) -> unit [@@js.call]
+  val remove_child: t -> t (* T *) -> unit [@@js.call]
+  val first_child: t -> t (* May return Element.null *) [@@js.get]
+  val last_child: t -> t (* May return Element.null *) [@@js.get]
+  val next_sibling: t (* T *) -> t (* May return Element.null *) [@@js.get]
 
   val remove_all_children: t -> unit
   [@@js.custom
@@ -443,7 +463,7 @@ module Element : sig
     ]
 
   val has_child_nodes: t (* T *) -> bool [@@js.call]
-  val add_event_listener: t (* T *) -> Event.kind -> (Event.t -> unit) -> bool -> unit
+  val add_event_listener: t (* T *) -> Event.kind -> (Event.t -> unit) -> bool -> unit [@@js.call]
   val add_cancellable_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> (unit -> unit)
   [@@js.custom
     val add_event_listener_internal: t -> Event.kind -> Ojs.t -> bool -> unit
@@ -456,66 +476,101 @@ module Element : sig
       fun () ->
         remove_event_listener_internal x k f c
                                                                                       ]
-  val inner_text: t -> string
-  val get_elements_by_tag_name: t -> string -> t array
-  val get_elements_by_class_name: t -> string -> t array
+  val inner_text: t -> string [@@js.get]
+  val get_elements_by_tag_name: t -> string -> t array [@@js.call]
+  val get_elements_by_class_name: t -> string -> t array [@@js.call]
 
-  val has_attribute: t -> string -> bool
-  val get_attribute: t -> string -> string
-  val remove_attribute: t -> string -> unit
-  val set_attribute: t -> string -> string -> unit
+  val has_attribute: t -> string -> bool [@@js.call]
+  val get_attribute: t -> string -> string [@@js.call]
+  val remove_attribute: t -> string -> unit [@@js.call]
+  val set_attribute: t -> string -> string -> unit [@@js.call]
   val get_bounding_client_rect: t -> Rect.t [@@js.call]
   val get_bounding_box: t (* svg *) -> SVGRect.t [@@js.call "getBBox"]
 
-  val normalize: t (* T *) -> unit
+  type shadow_mode =
+    | Open [@js "open"]
+    | Closed [@js "closed"]
+  [@@js.enum]
 
-  val value: t (* <input> *) -> string
-  val set_value: t (* <input> *) -> string -> unit
-  val select: t (* <input> <textarea *) -> unit
-  val files: t (* <input> *) -> File.t list
+  [@@@js.stop]
+  val attach_shadow: mode:shadow_mode -> t -> t
+  [@@@js.start]
+  [@@@js.implem
+    type shadow_root_init = { mode: shadow_mode } [@@js]
+    val attach_shadow: t -> shadow_root_init -> t [@@js.call]
 
-  val selected_index: t (* <select> *) -> int
-  val checked: t (* <input> *) -> bool
-  val set_checked: t (* <input> *) -> bool -> unit
+    let attach_shadow ~mode element = attach_shadow element {mode}
+  ]
 
-  val node_value: t (* T *) -> string
-  val set_node_value: t (* T *) -> string -> unit
-  val parent_node: t (* T *) -> t
-  val node_name: t (* T *) -> string
+  val normalize: t (* T *) -> unit [@@js.call]
 
-  val dispatch_event: t (* T *) -> Event.t -> bool
-  val style: t (* T *) -> Style.t
-  val set_inner_HTML: t -> string -> unit
-  val set_text_content: t -> string -> unit
-  val set_class_name: t -> string -> unit
-  val class_name: t -> string
+  val value: t (* <input> *) -> string [@@js.get]
+  val set_value: t (* <input> *) -> string -> unit [@@js.set]
+  val select: t (* <input> <textarea *) -> unit [@@js.call]
+  val files: t (* <input> *) -> File.t list [@@js.get]
 
-  val client_width: t -> int
-  val client_height: t -> int
-  val scroll_width: t -> int
-  val scroll_height: t -> int
-  val width: t -> int
-  val height: t -> int
+  val selected_index: t (* <select> *) -> int [@@js.get]
+  val checked: t (* <input> *) -> bool [@@js.get]
+  val set_checked: t (* <input> *) -> bool -> unit [@@js.set]
 
-  val offset_parent: t -> t option
-  val offset_top: t -> int
-  val offset_left: t -> int
-  val offset_width: t -> int
-  val offset_height: t -> int
+  val node_value: t (* T *) -> string [@@js.get]
+  val set_node_value: t (* T *) -> string -> unit [@@js.set]
+  val parent_node: t (* T *) -> t [@@js.get]
+  val node_name: t (* T *) -> string [@@js.get]
 
-  val scroll_top: t -> float
-  val set_scroll_top: t -> float -> unit
+  val dispatch_event: t (* T *) -> Event.t -> bool [@@js.call]
+  val style: t (* T *) -> Style.t [@@js.get]
+  val inner_HTML: t -> string [@@js.get]
+  val set_inner_HTML: t -> string -> unit [@@js.set]
+  val set_text_content: t -> string -> unit [@@js.set]
+  val set_class_name: t -> string -> unit [@@js.set]
+  val class_name: t -> string [@@js.get]
 
-  val focus: t -> unit
-  val blur: t -> unit
+  val client_width: t -> int [@@js.get]
+  val client_height: t -> int [@@js.get]
+  val scroll_width: t -> int [@@js.get]
+  val scroll_height: t -> int [@@js.get]
+  val width: t -> int [@@js.get]
+  val height: t -> int [@@js.get]
 
-  val selection_start: t -> int
-  val selection_end: t -> int
-  val set_selection_start: t -> int -> unit
-  val set_selection_end: t -> int -> unit
+  val offset_parent: t -> t option [@@js.get]
+  val offset_top: t -> int [@@js.get]
+  val offset_left: t -> int [@@js.get]
+  val offset_width: t -> int [@@js.get]
+  val offset_height: t -> int [@@js.get]
 
-  val remove: t -> unit
-  val click: t -> unit
+
+  val scroll_top: t -> float [@@js.get]
+  val set_scroll_top: t -> float -> unit [@@js.set]
+  val scroll_into_view: t -> bool -> unit[@@js.call]
+  val focus: t -> unit [@@js.call]
+  val blur: t -> unit [@@js.call]
+
+  type scroll_into_view_options = { behavior : behavior option }
+  and behavior =
+    | Auto [@js "auto"]
+    | Instant [@js "instant"]
+    | Smooth [@js "smooth"]
+  [@@js.enum]
+
+  val scroll_into_view_options: t -> scroll_into_view_options -> unit[@@js.call "scrollIntoView"]
+
+  type scroll_by_options = { top: float; left: float; behavior: behavior option }
+
+  val scroll_by: t -> scroll_by_options -> unit[@@js.call]
+
+  val selection_start: t -> int [@@js.get]
+  val selection_end: t -> int [@@js.get]
+  val set_selection_start: t -> int -> unit [@@js.set]
+  val set_selection_end: t -> int -> unit [@@js.set]
+
+  val remove: t -> unit [@@js.call]
+  val click: t -> unit [@@js.call]
+
+  val query_selector: t -> string -> t [@@js.call]
+  val query_selector_all: t -> string -> t list [@@js.call]
+
+  val class_list: t -> ClassList.t [@@js.get]
 end
 
 module Document: sig
@@ -523,30 +578,31 @@ module Document: sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
 
-  val create_element: t -> string -> Element.t
+  val create_element: t -> string -> Element.t [@@js.call]
   val create_element_ns: t -> string -> string -> Element.t [@@js.call "createElementNS"]
-  val create_text_node: t -> string -> Element.t
-  val create_event: t -> string -> Event.t
+  val create_text_node: t -> string -> Element.t [@@js.call]
+  val create_event: t -> string -> Event.t [@@js.call]
 
-  val get_element_by_id: t -> string -> Element.t option
-  val get_elements_by_class_name: t -> string -> Element.t array
+  val get_element_by_id: t -> string -> Element.t option [@@js.call]
+  val get_elements_by_class_name: t -> string -> Element.t array [@@js.call]
 
-  val body: t -> Element.t
-  val document_element: t -> Element.t
-  val active_element: t -> Element.t
+  val body: t -> Element.t [@@js.get]
+  val document_element: t -> Element.t [@@js.get]
+  val active_element: t -> Element.t [@@js.get]
 
-  val cookie: t -> string
-  val set_cookie: t -> string -> unit
-  val set_title: t -> string -> unit
+  val cookie: t -> string [@@js.get]
+  val set_cookie: t -> string -> unit [@@js.set]
+  val set_title: t -> string -> unit [@@js.set]
 
   val open_: t -> ?mime_type:string -> ?history_mode:string -> unit -> unit [@@js.call "open"]
   val write: t -> string -> unit [@@js.call]
   val writeln: t -> string -> unit [@@js.call]
-  val close: t -> unit
+  val close: t -> unit [@@js.call]
 
-  val exec_command: t -> string -> bool
+  val exec_command: t -> string -> bool [@@js.call]
 
-  val query_selector: t -> string -> Element.t
+  val query_selector: t -> string -> Element.t [@@js.call]
+  val query_selector_all: t -> string -> Element.t list [@@js.call]
 
   val remove_all_selection_ranges: t -> unit [@@js.call "getSelection().removeAllRanges"]
 end
@@ -556,13 +612,13 @@ module History : sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
 
-  val length: t -> int
-  val back: t -> unit
-  val forward: t -> unit
-  val go: t -> ([`Offset of int | `Url of string] [@js.union]) -> unit
+  val length: t -> int [@@js.get]
+  val back: t -> unit [@@js.call]
+  val forward: t -> unit [@@js.call]
+  val go: t -> ([`Offset of int | `Url of string] [@js.union]) -> unit [@@js.call]
 
-  val replace_state: t -> Ojs.t -> string -> string -> unit
-  val push_state: t -> Ojs.t -> string -> string -> unit
+  val replace_state: t -> Ojs.t -> string -> string -> unit [@@js.call]
+  val push_state: t -> Ojs.t -> string -> string -> unit [@@js.call]
 end
 
 module Location: sig
@@ -573,29 +629,29 @@ module Location: sig
   val get_hash: unit -> string [@@js.get "location.hash"]
   val set_hash: string -> unit [@@js.set "location.hash"]
 
-  val host: t -> string
-  val set_host: t -> string -> unit
+  val host: t -> string [@@js.get]
+  val set_host: t -> string -> unit [@@js.set]
 
-  val hostname: t -> string
-  val set_hostname: t -> string -> unit
+  val hostname: t -> string [@@js.get]
+  val set_hostname: t -> string -> unit [@@js.set]
 
   val href: unit -> string [@@js.get "location.href"]
   val set_href: string -> unit [@@js.set "location.href"]
 
-  val pathname: t -> string
-  val set_pathname: t -> string -> unit
+  val pathname: t -> string [@@js.get]
+  val set_pathname: t -> string -> unit [@@js.set]
 
-  val port: t -> string
-  val set_port: t -> string -> unit
+  val port: t -> string [@@js.get]
+  val set_port: t -> string -> unit [@@js.set]
 
-  val protocol: t -> string
-  val set_protocol: t -> string -> unit
+  val protocol: t -> string [@@js.get]
+  val set_protocol: t -> string -> unit [@@js.set]
 
-  val search: t -> string
-  val set_search: t -> string -> unit
+  val search: t -> string [@@js.get]
+  val set_search: t -> string -> unit [@@js.set]
 
   val assign: t -> string -> unit [@@js.call]
-  val reload: t -> ?force:bool -> unit -> unit
+  val reload: t -> ?force:bool -> unit -> unit [@@js.call]
   val replace: t -> string -> unit [@@js.call]
 end
 
@@ -607,7 +663,7 @@ module Window: sig
   type timeout_id
   type interval_id
 
-  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit
+  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit [@@js.call]
   val add_cancellable_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> (unit -> unit)
   [@@js.custom
     val add_event_listener_internal: t -> Event.kind -> Ojs.t -> bool -> unit
@@ -620,42 +676,50 @@ module Window: sig
       fun () ->
         remove_event_listener_internal x k f c
                                                                                       ]
-  val document: t -> Document.t
-  val set_onload: t -> (unit -> unit) -> unit
-  val set_interval: t -> (unit -> unit) -> int -> interval_id
-  val set_timeout: t -> (unit -> unit) -> int -> timeout_id
-  val clear_timeout: t -> timeout_id -> unit
-  val clear_interval: t -> interval_id -> unit
-  val request_animation_frame: t -> (float -> unit) -> unit
+  val document: t -> Document.t [@@js.get]
+  val set_onload: t -> (unit -> unit) -> unit [@@js.set]
+  val set_interval: t -> (unit -> unit) -> int -> interval_id [@@js.call]
+  val set_timeout: t -> (unit -> unit) -> int -> timeout_id [@@js.call]
+  val clear_timeout: t -> timeout_id -> unit [@@js.call]
+  val clear_interval: t -> interval_id -> unit [@@js.call]
+  val request_animation_frame: t -> (float -> unit) -> unit [@@js.call]
 
-  val open_: t -> ?url:string -> ?name:string -> ?features:string -> ?replace:bool -> unit -> t
-  val alert: t -> string -> unit
+  val open_: t -> ?url:string -> ?name:string -> ?features:string -> ?replace:bool -> unit -> t [@@js.call]
+  val alert: t -> string -> unit [@@js.call]
 
-  val session_storage: t -> Storage.t option
-  val local_storage: t -> Storage.t option
+  val session_storage: t -> Storage.t option [@@js.get]
+  val local_storage: t -> Storage.t option [@@js.get]
 
-  val inner_width: t -> float
-  val inner_height: t -> float
-  val page_x_offset: t -> int
-  val page_y_offset: t -> int
-  val scroll_by: t -> int -> int -> unit
-  val scroll_to: t -> int -> int -> unit
-  val history: t -> History.t
-  val location : t -> Location.t
+  val inner_width: t -> float [@@js.get]
+  val inner_height: t -> float [@@js.get]
+  val page_x_offset: t -> int [@@js.get]
+  val page_y_offset: t -> int [@@js.get]
+  val scroll_by: t -> int -> int -> unit [@@js.call]
+  val scroll_to: t -> int -> int -> unit [@@js.call]
 
-  val frame_element: t -> Element.t
+  type scroll_to_options = {
+    top: int;
+    left: int;
+    behavior: Element.behavior option;
+  }
+  val scroll_to_options: t -> scroll_to_options -> unit [@@js.call "scrollTo"]
 
-  val get_computed_style: t -> Element.t -> Style.t
+  val history: t -> History.t [@@js.get]
+  val location : t -> Location.t [@@js.get]
 
-  val decode_URI_component: t -> string -> string
+  val frame_element: t -> Element.t [@@js.get]
+
+  val get_computed_style: t -> Element.t -> Style.t [@@js.call]
+
+  val decode_URI_component: t -> string -> string [@@js.call]
 
   val event_source: Event.t -> t [@@js.get "source"] (* message *)
-  val post_message: t -> Ojs.t -> string -> unit
+  val post_message: t -> Ojs.t -> string -> unit [@@js.call]
 end
 
 module IFrame: sig
-  val content_window: Element.t -> Window.t option
-  val content_document: Element.t -> Document.t option
+  val content_window: Element.t -> Window.t option [@@js.get]
+  val content_document: Element.t -> Document.t option [@@js.get]
 end
 
 module JSON : sig
@@ -676,11 +740,12 @@ module FileReader : sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
   val create: unit -> t [@@js.new "FileReader"]
-  val ready_state: t -> state
-  val result: t -> string
-  val set_onload: t -> (unit -> unit) -> unit
-  val read_as_binary_string: t -> File.t -> unit
-  val read_as_text: t -> File.t -> unit
+  val ready_state: t -> state [@@js.get]
+  val result: t -> string [@@js.get]
+  val set_onload: t -> (unit -> unit) -> unit [@@js.set]
+  val read_as_binary_string: t -> File.t -> unit [@@js.call]
+  val read_as_text: t -> File.t -> unit [@@js.call]
+  val read_as_data_url: t -> File.t -> unit [@@js.call "readAsDataURL"]
 end
 
 module XHR: sig
@@ -690,13 +755,13 @@ module XHR: sig
 
 
   val create: unit -> t [@@js.new "XMLHttpRequest"]
-  val open_: t -> string -> string -> unit
-  val send: t -> Ojs.t -> unit
-  val set_request_header: t -> string -> string -> unit
-  val get_response_header: t -> string -> string option
-  val set_response_type: t -> string -> unit
-  val override_mime_type: t -> string -> unit
-  val set_with_credentials: t -> bool -> unit (* starting from IE10 *)
+  val open_: t -> string -> string -> unit [@@js.call]
+  val send: t -> Ojs.t -> unit [@@js.call]
+  val set_request_header: t -> string -> string -> unit [@@js.call]
+  val get_response_header: t -> string -> string option [@@js.call]
+  val set_response_type: t -> string -> unit [@@js.set]
+  val override_mime_type: t -> string -> unit [@@js.call]
+  val set_with_credentials: t -> bool -> unit (* starting from IE10 *) [@@js.set]
 
   type ready_state =
     | Unsent [@js 0]
@@ -707,12 +772,15 @@ module XHR: sig
     | Other of int [@js.default]
   [@@js.enum]
 
-  val status: t -> int
-  val ready_state: t -> ready_state
-  val response_text: t -> string
-  val response: t -> Ojs.t
+  val status: t -> int [@@js.get]
+  val status_text: t -> string [@@js.get]
+  val ready_state: t -> ready_state [@@js.get]
+  val response_type: t -> string [@@js.get]
+  val response_text: t -> string [@@js.get]
+  val response: t -> Ojs.t [@@js.get]
+  val response_URL: t -> string [@@js.get]
 
-  val set_onreadystatechange: t -> (unit -> unit) -> unit
+  val set_onreadystatechange: t -> (unit -> unit) -> unit [@@js.set]
 end
 
 module WebSocket : sig
@@ -728,24 +796,24 @@ module WebSocket : sig
   [@@js.enum]
 
   val create : string -> ?protocols:string list -> unit -> t [@@js.new "WebSocket"]
-  val send : t -> string -> unit
-  val close : t -> ?code:int -> ?reason:string -> unit -> unit
+  val send : t -> string -> unit [@@js.call]
+  val close : t -> ?code:int -> ?reason:string -> unit -> unit [@@js.call]
 
-  val binary_type : t -> string
-  val set_binary_type : t -> string -> unit
-  val ready_state : t -> ready_state
+  val binary_type : t -> string [@@js.get]
+  val set_binary_type : t -> string -> unit [@@js.set]
+  val ready_state : t -> ready_state [@@js.get]
 
-  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit
+  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit [@@js.call]
 
   module CloseEvent : sig
     type t = Event.t
 
-    val code : t -> int
+    val code : t -> int [@@js.get]
   end
 end
 
-val window: Window.t
-val document: Document.t
+val window: Window.t [@@js.global]
+val document: Document.t [@@js.global]
 
 module Canvas : sig
   type context
@@ -769,34 +837,34 @@ module Canvas : sig
       ]
 
   val to_data_URL: (*<canvas>*) Element.t -> string [@@js.call]
-  val set_fill_style: context -> ([`Color of css_color | `Gradient of gradient][@js.union]) -> unit
-  val set_stroke_style: context -> ([`Color of css_color | `Gradient of gradient][@js.union]) -> unit
-  val set_line_width: context -> float -> unit
-  val create_linear_gradient: context -> float -> float -> float -> float -> gradient
-  val add_color_stop: gradient -> float -> css_color -> unit
-  val begin_path: context -> unit
-  val close_path: context -> unit
-  val arc: context -> float -> float -> float -> float -> float -> unit
-  val move_to: context -> float -> float -> unit
-  val line_to: context -> float -> float -> unit
-  val fill: context -> unit
-  val stroke: context -> unit
-  val stroke_rect: context -> float -> float -> float -> float -> unit
-  val fill_rect: context -> float -> float -> float -> float -> unit
-  val set_font: context -> string -> unit
-  val fill_text: context -> string -> float -> float -> unit
-  val stroke_text: context -> string -> float -> float -> unit
+  val set_fill_style: context -> ([`Color of css_color | `Gradient of gradient][@js.union]) -> unit [@@js.set]
+  val set_stroke_style: context -> ([`Color of css_color | `Gradient of gradient][@js.union]) -> unit [@@js.set]
+  val set_line_width: context -> float -> unit [@@js.set]
+  val create_linear_gradient: context -> float -> float -> float -> float -> gradient [@@js.call]
+  val add_color_stop: gradient -> float -> css_color -> unit [@@js.call]
+  val begin_path: context -> unit [@@js.call]
+  val close_path: context -> unit [@@js.call]
+  val arc: context -> float -> float -> float -> float -> float -> unit [@@js.call]
+  val move_to: context -> float -> float -> unit [@@js.call]
+  val line_to: context -> float -> float -> unit [@@js.call]
+  val fill: context -> unit [@@js.call]
+  val stroke: context -> unit [@@js.call]
+  val stroke_rect: context -> float -> float -> float -> float -> unit [@@js.call]
+  val fill_rect: context -> float -> float -> float -> float -> unit [@@js.call]
+  val set_font: context -> string -> unit [@@js.set]
+  val fill_text: context -> string -> float -> float -> unit [@@js.call]
+  val stroke_text: context -> string -> float -> float -> unit [@@js.call]
   module TextMetrics : sig
     type t
     val t_of_js: Ojs.t -> t
     val t_to_js: t -> Ojs.t
-    val width: t -> float
+    val width: t -> float [@@js.get]
   end
-  val measure_text: context -> string -> TextMetrics.t
-  val rotate: context -> float -> unit
-  val translate: context -> float -> float -> unit
-  val scale: context -> float -> float -> unit
-  val clear_rect: context -> float -> float -> float -> float -> unit
+  val measure_text: context -> string -> TextMetrics.t [@@js.call]
+  val rotate: context -> float -> unit [@@js.call]
+  val translate: context -> float -> float -> unit [@@js.call]
+  val scale: context -> float -> float -> unit [@@js.call]
+  val clear_rect: context -> float -> float -> float -> float -> unit [@@js.call]
 end
 
 module Performance : sig
@@ -807,19 +875,28 @@ end
 module Console : sig
   type t
 
-  val log: t -> Ojs.t -> unit
+  val log: t -> Ojs.t -> unit [@@js.call]
+  val time: t -> string -> unit [@@js.call]
+  val time_end: t -> string -> unit [@@js.call "timeEnd"]
 end
-val console: Console.t
+val console: Console.t [@@js.global]
 
 module ArrayBuffer : sig
   type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
   val create: int -> t [@@js.new "ArrayBuffer"]
 end
 
 module Uint8Array : sig
   type t
   val from_buffer: ArrayBuffer.t -> t [@@js.new "Uint8Array"]
-  val set: t -> int array -> int -> unit
+  val create: int -> t [@@js.new "Uint8Array"]
+  val set: t -> int array -> int -> unit [@@js.call]
+
+  val random: t -> unit [@@js.global "window.crypto.getRandomValues"]
+  val to_array: t -> int array [@@js.cast]
+  val get: t -> int -> int [@@js.custom let get a i = Ojs.int_of_js (Ojs.array_get (t_to_js a) i)]
 end
 
 module Blob : sig
@@ -831,11 +908,17 @@ module Blob : sig
   val t_to_js: t -> Ojs.t
 
   val create: ([`ArrayBuffer of ArrayBuffer.t | `Other of Ojs.t] [@js.union]) list -> ?options:options -> unit -> t [@@js.new "Blob"]
-  val text: t -> unit -> string Promise.t
+  val mime_type: t -> string [@@js.get "type"]
+  val text: t -> unit -> string Promise.t [@@js.call]
+
+  type file_options
+  val file_options: ?type_:string -> ?last_modified:float -> unit -> file_options [@@js.builder]
+  val to_file: t array -> string -> file_options -> File.t [@@js.new "File"]
 end
 
 module ObjectURL : sig
   val of_blob: Blob.t -> string [@@js.global "URL.createObjectURL"]
+  val of_file: File.t -> string [@@js.global "URL.createObjectURL"]
   val revoke: string -> unit [@@js.global "URL.revokeObjectURL"]
 end
 
@@ -845,10 +928,10 @@ module Svg : sig
     type t
     val t_of_js: Ojs.t -> t
     val t_to_js: t -> Ojs.t
-    val unit_type: t -> int
-    val value: t -> float
-    val value_as_string: t -> string
-    val value_in_specified_units: t -> float
+    val unit_type: t -> int [@@js.get]
+    val value: t -> float [@@js.get]
+    val value_as_string: t -> string [@@js.get]
+    val value_in_specified_units: t -> float [@@js.get]
   end
 
   module AnimatedLength : sig
@@ -856,8 +939,8 @@ module Svg : sig
     val t_of_js: Ojs.t -> t
     val t_to_js: t -> Ojs.t
 
-    val anim_val: t -> Length.t
-    val base_val: t -> Length.t
+    val anim_val: t -> Length.t [@@js.get]
+    val base_val: t -> Length.t [@@js.get]
   end
 
   type path_seg_type =
@@ -878,22 +961,22 @@ module Svg : sig
     val t_of_js: Ojs.t -> t
     val t_to_js: t -> Ojs.t
 
-    val x: t -> float
-    val y: t -> float
-    val x1: t -> float
-    val y1: t -> float
-    val x2: t -> float
-    val y2: t -> float
+    val x: t -> float [@@js.get]
+    val y: t -> float [@@js.get]
+    val x1: t -> float [@@js.get]
+    val y1: t -> float [@@js.get]
+    val x2: t -> float [@@js.get]
+    val y2: t -> float [@@js.get]
 
-    val path_seg_type: t -> path_seg_type
-    val path_seg_type_as_letter: t -> string
+    val path_seg_type: t -> path_seg_type [@@js.get]
+    val path_seg_type_as_letter: t -> string [@@js.get]
   end
 
   module PathSegList : sig
     type t
     val t_of_js: Ojs.t -> t
     val t_to_js: t -> Ojs.t
-    val number_of_items: t -> int
+    val number_of_items: t -> int [@@js.get]
     val get_item: t -> int -> PathSeg.t [@@js.call]
     val insert_item_before: t -> PathSeg.t -> int -> unit [@@js.call]
     val replace_item: t -> PathSeg.t -> int -> unit [@@js.call]
@@ -906,10 +989,10 @@ module Svg : sig
     val t_of_js: Ojs.t -> t
     val t_to_js: t -> Ojs.t
 
-    val path_seg_list: t -> PathSegList.t
-    val normalized_path_seg_list: t -> PathSegList.t
-    val animated_path_seg_list: t -> PathSegList.t
-    val animated_normalized_path_seg_list: t -> PathSegList.t
+    val path_seg_list: t -> PathSegList.t [@@js.get]
+    val normalized_path_seg_list: t -> PathSegList.t [@@js.get]
+    val animated_path_seg_list: t -> PathSegList.t [@@js.get]
+    val animated_normalized_path_seg_list: t -> PathSegList.t [@@js.get]
 
     val create_close_path: t -> unit -> PathSeg.t [@@js.call "createSVGPathSegClosePath"]
     val create_moveto_abs: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegMovetoAbs"]
@@ -918,3 +1001,17 @@ module Svg : sig
     val create_lineto_rel: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegLinetoRel"]
   end
 end
+
+module Base64: sig
+  val encode: JsString.t -> string [@@js.global "window.btoa"]
+  val decode: string -> JsString.t [@@js.global "window.atob"]
+end
+
+module FetchResponse: sig
+  type t = Ojs.t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+  val blob: t -> Ojs.t Promise.t [@@js.call]
+end
+
+val fetch: string -> FetchResponse.t Promise.t [@@js.global "fetch"]

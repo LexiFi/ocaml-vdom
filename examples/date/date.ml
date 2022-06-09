@@ -4,8 +4,6 @@
 
 open Vdom
 
-type model = float
-
 let update _ = function
   | `Click -> Js_browser.Date.now ()
 

@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright 2016 by LexiFi.                                                                         *)
+(* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
 
 (** {1 Rendering "Virtual applications" to concrete ones} *)
@@ -8,7 +8,11 @@
 
 module Cmd: sig
   type 'msg ctx
+
+  val container: _ ctx -> Js_browser.Element.t
+
   val send_msg: 'msg ctx -> 'msg -> unit
+  val after_redraw: 'msg ctx -> (unit -> unit) -> unit
 
   type handler = {f: 'msg. 'msg ctx -> 'msg Vdom.Cmd.t -> bool}
   (** A command handler recognizes some commands and reacts on them,

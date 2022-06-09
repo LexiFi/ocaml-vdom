@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright 2016 by LexiFi.                                                                         *)
+(* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
 
 module Cmd = struct
@@ -9,11 +9,13 @@ module Cmd = struct
   type 'msg t +=
     | Echo of 'msg
     | Batch of 'msg t list
+    | Bind: 'a t * ('a -> 'msg t) -> 'msg t
     | Map: ('a -> 'msg) * 'a t -> 'msg t
 
   let echo msg = Echo msg
   let batch l = Batch l
   let map f x = Map (f, x)
+  let bind x f = Bind (x, f)
 end
 
 module Custom = struct
@@ -21,13 +23,18 @@ module Custom = struct
   type event = ..
 end
 
-type mouse_event = {x: int; y: int; page_x: float; page_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
+type mouse_event = {x: int; y: int; page_x: float; page_y: float; element_x: float; element_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
+type paste_event = {text: string; selection_start: int; selection_end: int}
+
 type 'msg event_handler =
   | MouseDown of (mouse_event -> 'msg)
+  | MouseDownCancel of (mouse_event -> 'msg option)
+  | MouseUp of (mouse_event -> 'msg)
   | Click of (mouse_event -> 'msg)
+  | ClickCancel of (mouse_event -> 'msg option)
   | DblClick of (mouse_event -> 'msg)
   | Focus of 'msg
   | Blur of 'msg
@@ -36,9 +43,15 @@ type 'msg event_handler =
   | ChangeIndex of (int -> 'msg)
   | ChangeChecked of (bool -> 'msg)
   | MouseMove of (mouse_event -> 'msg)
+  | MouseEnter of (mouse_event -> 'msg)
+  | MouseLeave of (mouse_event -> 'msg)
+  | MouseOver of (mouse_event -> 'msg)
   | KeyDown of (key_event -> 'msg)
   | KeyDownCancel of (key_event -> 'msg option)
+  | KeyUp of (key_event -> 'msg)
+  | KeyUpCancel of (key_event -> 'msg option)
   | ContextMenu of (mouse_event -> 'msg)
+  | Paste of (paste_event -> 'msg option)
   | CustomEvent of (Custom.event -> 'msg option)
 
 type prop_val =
@@ -54,7 +67,10 @@ type 'msg attribute =
   | Attribute of string * string
 
 let onmousedown msg = Handler (MouseDown msg)
+let onmousedown_cancel msg = Handler (MouseDownCancel msg)
+let onmouseup msg = Handler (MouseUp msg)
 let onclick msg = Handler (Click msg)
+let onclick_cancel msg = Handler (ClickCancel msg)
 let ondblclick msg = Handler (DblClick msg)
 let oncontextmenu msg = Handler (ContextMenu msg)
 let onfocus msg = Handler (Focus msg)
@@ -64,8 +80,14 @@ let onchange_index msg = Handler (ChangeIndex msg)
 let onchange_checked msg = Handler (ChangeChecked msg)
 let onblur msg = Handler (Blur msg)
 let onmousemove msg = Handler (MouseMove msg)
+let onmouseenter msg = Handler (MouseEnter msg)
+let onmouseleave msg = Handler (MouseLeave msg)
+let onmouseover msg = Handler (MouseOver msg)
 let onkeydown msg = Handler (KeyDown msg)
 let onkeydown_cancel msg = Handler (KeyDownCancel msg)
+let onkeyup msg = Handler (KeyUp msg)
+let onkeyup_cancel msg = Handler (KeyUpCancel msg)
+let onpaste msg = Handler (Paste msg)
 let oncustomevent msg = Handler (CustomEvent msg)
 
 
@@ -77,10 +99,11 @@ let style k v = Style (k, v)
 let attr k v = Attribute (k, v)
 let int_attr k v = Attribute (k, string_of_int v)
 let float_attr k v = Attribute (k, string_of_float v)
-let scroll_to_show = bool_prop "scroll-to-show" true
+let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x
-let relative_dropdown x = int_prop "relative-dropdown" x
+let autofocus_if_visible = str_prop "autofocus" "if-visible"
+let select = bool_prop "select" true
 
 let class_ x = Property ("className", String x)
 let type_ x = Property ("type", String x)
@@ -198,3 +221,91 @@ let checked_event b = {ev = function ChangeChecked f -> Some (f b) | _ -> None}
 let change_event s = {ev = function Change f -> Some (f s) | _ -> None}
 let change_index_event i = {ev = function ChangeIndex f -> Some (f i) | _ -> None}
 let custom_event e = {ev = function CustomEvent f -> f e | _ -> None}
+
+let trim_end c s =
+  let l = ref (String.length s) in
+  while !l > 0 && s.[!l - 1] = c do
+    decr l
+  done;
+  if !l < String.length s then String.sub s 0 !l else s
+
+let replace_char s c x =
+  match String.index_opt s c with
+  | None -> s
+  | Some i0 ->
+      let buf = Buffer.create (String.length s) in
+      Buffer.add_substring buf s 0 i0;
+      for i = i0 to String.length s - 1 do
+        let u = s.[i] in
+        if u = c then Buffer.add_string buf x
+        else Buffer.add_char buf u
+      done;
+      Buffer.contents buf
+
+let to_html vdom =
+  let b = Buffer.create 654 in
+  let rec aux: type a. a vdom -> unit = function
+    | Text {key=_; txt} -> Buffer.add_string b txt
+    | Element {key=_; ns; tag; attributes; children} ->
+        let concat_tuple s (x1, x2) = x1 ^ s ^ x2 in
+        let attrs, styles =
+          List.fold_left
+            (fun (attrs, styles) -> function
+               | Property (name, value) ->
+                   let value =
+                     match value with
+                     | String s -> s
+                     | Int i -> string_of_int i
+                     | Float f -> trim_end '.' (string_of_float f)
+                     | Bool b -> string_of_bool b
+                   in
+                   (name, value) :: attrs, styles
+               | Style (name, value) ->
+                   attrs, (name, value) :: styles
+               | Handler _ -> attrs, styles
+               | Attribute (name, value) ->
+                   (name, value) :: attrs, styles
+            ) ([], []) attributes
+        in
+        let attrs =
+          match styles with
+          | [] -> attrs
+          | styles ->
+              let styles =
+                List.map (concat_tuple ":") styles
+                |> String.concat ";"
+              in
+              ("style", styles) :: attrs
+        in
+        let attrs = List.rev attrs in
+        let attrs = if ns = "" then attrs else ("xmlns", ns) :: attrs in
+        let attrs =
+          List.map (fun (k, v) ->
+              Printf.sprintf "%s=\"%s\"" k
+                (replace_char v '"' "&quote;")
+            ) attrs
+          |> String.concat " "
+        in
+        Buffer.add_char b '<';
+        Buffer.add_string b tag;
+        if attrs <> "" then begin
+          Buffer.add_char b ' ';
+          Buffer.add_string b attrs
+        end;
+        if children = [] then
+          Buffer.add_string b "/>"
+        else begin
+          Buffer.add_char b '>';
+          List.iter aux children;
+          Buffer.add_string b "</";
+          Buffer.add_string b tag;
+          Buffer.add_char b '>'
+        end
+    | Map {key=_; f=_; child} ->
+        aux child
+    | Memo {key=_; f; arg} ->
+        aux (f arg)
+    | Custom _ -> ()
+  in
+  aux vdom;
+  Buffer.contents b

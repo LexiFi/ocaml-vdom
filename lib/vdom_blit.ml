@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright 2016 by LexiFi.                                                                         *)
+(* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
 
 open Js_browser
@@ -11,26 +11,34 @@ let debug = false
 module Cmd = struct
   type 'msg ctx =
     {
+      container: Js_browser.Element.t;
       send_msg: ('msg -> unit);
+      after_redraw: (unit -> unit) -> unit;
     }
+
+  let container ctx = ctx.container
 
   let send_msg ctx = ctx.send_msg
 
+  let after_redraw ctx = ctx.after_redraw
+
   type handler = {f: 'msg. 'msg ctx -> 'msg Vdom.Cmd.t -> bool}
 
-  let rec run: type t. handler list -> (t -> unit) -> t Cmd.t -> unit = fun h p -> function
-    | Cmd.Echo msg -> p msg
-    | Cmd.Batch l -> List.iter (run h p) l
-    | Cmd.Map (f, cmd) -> run h (fun x -> p (f x)) cmd
-    | x ->
-        let ctx = {send_msg = p} in
-        let rec loop = function
-          | [] -> failwith (Printf.sprintf "No command handler found! (%s)" (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val x)))
-          | hd :: tl ->
-              if hd.f ctx x then ()
-              else loop tl
-        in
-        loop h
+  let rec run: type t. ((unit -> unit) -> unit) -> handler list -> (t -> unit) -> Js_browser.Element.t -> t Cmd.t -> unit =
+    fun after h p elt -> function
+      | Cmd.Echo msg -> p msg
+      | Cmd.Batch l -> List.iter (run after h p elt) l
+      | Cmd.Map (f, cmd) -> run after h (fun x -> p (f x)) elt cmd
+      | Cmd.Bind (cmd, f) -> run after h (fun x -> run after h p elt (f x)) elt cmd
+      | x ->
+          let ctx = {send_msg = p; container = elt; after_redraw = after} in
+          let rec loop = function
+            | [] -> Mlfi_isdatypes.ffailwith "No command handler found! (%s)" (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val x))
+            | hd :: tl ->
+                if hd.f ctx x then ()
+                else loop tl
+          in
+          loop h
 end
 
 module Custom = struct
@@ -73,32 +81,6 @@ module Custom = struct
     and el = lazy (find_handler {parent; send_event; after_redraw} elt handlers) in
     Lazy.force el
 end
-
-(* Auto scrolling *)
-
-let rec scroll_parent node =
-  if node = Element.null then
-    Document.body document
-  else
-    let overflow_y = Style.get (Window.get_computed_style window node) "overflowY" in
-    let is_scrollable = overflow_y <> "visible" && overflow_y <> "hidden" in
-    if is_scrollable && Element.scroll_height node >= Element.client_height node then
-      node
-    else
-      scroll_parent (Element.parent_node node)
-
-let scroll_to_make_visible child =
-  let open Js_browser in
-  let parent = scroll_parent child in
-  let r_parent = Element.get_bounding_client_rect parent in
-  let r_child = Element.get_bounding_client_rect child in
-  let y1 = Rect.bottom r_parent and y2 = Rect.bottom r_child in
-  if y2 > y1 then
-    Element.set_scroll_top parent (Element.scroll_top parent +. y2 -. y1)
-  else
-    let y1 = Rect.top r_parent and y2 = Rect.top r_child in
-    if y2 < y1 then
-      Element.set_scroll_top parent (Element.scroll_top parent +. y2 -. y1)
 
 (* Rendering (VDOM -> DOM) *)
 
@@ -160,36 +142,42 @@ let bmemo vdom child =
 let async f =
   ignore (Window.set_timeout window f 0)
 
-let custom_attribute dom = function
+let is_visible dom =
+  let bounding = Element.get_bounding_client_rect dom in
+  let top = Rect.top bounding in
+  let bottom = Rect.bottom bounding in
+  top >= 0.0 && bottom <= Window.inner_height window
+
+let custom_attribute dom prop v =
+  match prop with
   | "scroll-to-show" ->
       async
         (fun () ->
-           try scroll_to_make_visible dom
+           try
+             let align_top =
+               match v with
+               | Bool false -> false
+               | _ -> true
+             in
+             if not (is_visible dom) then
+               Element.scroll_into_view dom align_top;
            with exn -> Printf.printf "scroll: %s\n%!" (Printexc.to_string exn)
         );
       true
 
   | "autofocus" ->
-      async (fun () -> Element.focus dom);
+      async (fun () ->
+          let do_focus =
+            match v with
+            | String "if-visible" -> is_visible dom
+            | _ -> true
+          in
+          if do_focus then Element.focus dom
+        );
       true
 
-  | "relative-dropdown" ->
-      let style = Element.style dom in
-      Style.set_position (Element.style dom) "absolute";
-      let px = Printf.sprintf "%fpx" in
-      async (fun () ->
-          match Element.offset_parent dom with
-          | None -> ()
-          | Some offset_parent ->
-              let parent = Element.parent_node dom in
-              let rect = Element.get_bounding_client_rect parent in
-              let offset_rect = Element.get_bounding_client_rect offset_parent in
-              let top = Rect.top rect -. Rect.top offset_rect in
-              let left = Rect.left rect -. Rect.left offset_rect in
-              Style.set_top style (px (top +. float (Element.offset_height parent)));
-              Style.set_left style (px left);
-              Style.set_width style (px (float (Element.offset_width parent)))
-        );
+  | "select" ->
+      async (fun () -> Element.select dom);
       true
 
   | _ -> false
@@ -200,12 +188,12 @@ let apply_attributes dom attributes =
   List.iter
     (function
       | Property (k, v) ->
-          if not (custom_attribute dom k) then
-            Ojs.set (Element.t_to_js dom) k (eval_prop v)
+          if not (custom_attribute dom k v) then
+            Ojs.set_prop_ascii (Element.t_to_js dom) k (eval_prop v)
 
       | Style (k, v) ->
-          Ojs.set
-            (Ojs.get (Element.t_to_js dom) "style")
+          Ojs.set_prop_ascii
+            (Ojs.get_prop_ascii (Element.t_to_js dom) "style")
             k
             (Ojs.string_to_js v)
 
@@ -215,6 +203,25 @@ let apply_attributes dom attributes =
       | _ -> ()
     )
     attributes
+
+type env =
+  {
+    cmds: Cmd.handler list;
+    customs: Custom.handler list;
+  }
+
+let empty = {cmds = []; customs = []}
+let cmd h = {empty with cmds = [h]}
+let custom h = {empty with customs = [h]}
+let merge envs =
+  {
+    cmds = List.concat (List.map (fun e -> e.cmds) envs);
+    customs = List.concat (List.map (fun e -> e.customs) envs);
+  }
+
+let global = ref empty
+
+let register e = global := merge [e; !global]
 
 type ctx =
   {
@@ -238,7 +245,7 @@ let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
 
   | Custom {elt; attributes; key = _} ->
       let elt =
-        try Custom.lookup ~parent ~process_custom:ctx.process_custom ~after_redraw:ctx.after_redraw elt ctx.custom_handlers
+        try Custom.lookup ~parent ~process_custom:ctx.process_custom ~after_redraw:ctx.after_redraw elt (ctx.custom_handlers @ (!global).customs);
         with exn ->
           Printf.printf "Error during vdom Custom %s lookup: %s\n%!"
             (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val elt))
@@ -259,8 +266,8 @@ let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
       apply_attributes dom attributes;
       BElement {vdom; dom; children}
 
-let blit ctx vdom =
-  try blit ctx vdom
+let blit ~parent ctx vdom =
+  try blit ~parent ctx vdom
   with exn ->
     Printf.printf "Error during vdom blit: %s\n%!" (Printexc.to_string exn);
     raise exn
@@ -317,10 +324,10 @@ let sync_attributes dom a1 a2 =
     match k, v with
     | "value", String s when s = Element.value dom -> ()
     | _ ->
-        if not (custom_attribute dom k) then
-          Ojs.set (Element.t_to_js dom) k (eval_prop v)
+        if not (custom_attribute dom k v) then
+          Ojs.set_prop_ascii (Element.t_to_js dom) k (eval_prop v)
   in
-  let clear k = Ojs.set (Element.t_to_js dom) k Ojs.null in
+  let clear k = Ojs.set_prop_ascii (Element.t_to_js dom) k Ojs.null in
   sync_props
     string_of_prop
     same_prop
@@ -329,8 +336,8 @@ let sync_attributes dom a1 a2 =
     (choose props a2);
 
   let styles = function Style (k, v) -> Some (k, String v) | Property _ | Handler _ | Attribute _ -> None in
-  let set k v = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k (eval_prop v) in
-  let clear k = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k js_empty_string in
+  let set k v = Ojs.set_prop_ascii (Ojs.get_prop_ascii (Element.t_to_js dom) "style") k (eval_prop v) in
+  let clear k = Ojs.set_prop_ascii (Ojs.get_prop_ascii (Element.t_to_js dom) "style") k js_empty_string in
   sync_props
     string_of_prop
     same_prop
@@ -428,6 +435,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
       (* produce the new sequence, from right-to-left, creating and picking+syncinc nodes *)
       let ctrls = ref [] in
       let next = ref (Element.t_of_js Ojs.null) in
+      let prev_move = ref false in
       for i = Array.length new_children - 1 downto 0 do
         let idx = indices.(i) in
         if debug then Printf.printf "old = %i; new = %i: " idx i;
@@ -435,7 +443,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
           if idx < 0 then begin
             (* create *)
             if debug then Printf.printf "create\n%!";
-            blit ~parent ctx new_children.(i)
+            blit ~parent:dom ctx new_children.(i)
           end
           else begin
             if debug then Printf.printf "sync&move\n%!";
@@ -461,13 +469,14 @@ let rec sync : type old_msg msg. ctx -> Element.t -> old_msg ctrl -> msg vdom ->
         let move =
           idx < 0 ||
           ((if i = Array.length new_children - 1 then idx <> Array.length old_children - 1
-            else indices.(i + 1) <> idx + 1)
-           && Element.next_sibling (get_dom c) != !next) (* could avoid reading from the DOM... *)
+            else !prev_move || indices.(i + 1) <> idx + 1)
+           && Element.next_sibling (get_dom c) != !next)(* could avoid reading from the DOM... *)
         in
         if move then begin
           if debug then Printf.printf "really move\n%!";
           Element.insert_before dom (get_dom c) !next;
         end;
+        prev_move := move;
         next := get_dom c;
         ctrls := c :: !ctrls
       done;
@@ -522,12 +531,17 @@ let rec vdom_of_dom: type msg. msg ctrl -> Element.t -> msg find = fun root dom 
       | _ -> assert false
       end
 
-let mouse_event e =
+let mouse_event dom e =
+  let client_x = Event.client_x e in
+  let client_y = Event.client_y e in
+  let brect = Element.get_bounding_client_rect dom in
   {
-    x = Event.client_x e;
-    y = Event.client_y e;
+    x = client_x;
+    y = client_y;
     page_x = Event.page_x e;
     page_y = Event.page_y e;
+    element_x = (float client_x) -. Rect.left brect;
+    element_y = (float client_y) -. Rect.top brect;
     buttons = Event.buttons e;
     alt_key = Event.alt_key e;
     ctrl_key = Event.ctrl_key e;
@@ -540,6 +554,13 @@ let key_event e =
     alt_key = Event.alt_key e;
     ctrl_key = Event.ctrl_key e;
     shift_key = Event.shift_key e;
+  }
+
+let paste_event dom e =
+  {
+    text = DataTransfer.get_data (Event.clipboard_data e) "text";
+    selection_start = Element.selection_start dom;
+    selection_end = Element.selection_end dom;
   }
 
 type ('model, 'msg) app = {
@@ -555,24 +576,6 @@ let process x = x.process
 let get x = x.get ()
 let after_redraw x = x.after_redraw
 
-type env =
-  {
-    cmds: Cmd.handler list;
-    customs: Custom.handler list;
-  }
-
-let empty = {cmds = []; customs = []}
-let cmd h = {empty with cmds = [h]}
-let custom h = {empty with customs = [h]}
-let merge envs =
-  {
-    cmds = List.concat (List.map (fun e -> e.cmds) envs);
-    customs = List.concat (List.map (fun e -> e.customs) envs);
-  }
-
-let global = ref empty
-
-let register e = global := merge [e; !global]
 
 let run (type msg model) ?(env = empty) ?container
     ({init = (model0, cmd0); update; view} : (model, msg) Vdom.app) =
@@ -610,7 +613,6 @@ let run (type msg model) ?(env = empty) ?container
   let model = ref model0 in
   let current = ref (Some x) in
 
-
   let pending_redraw = ref false in
   let redraw _ =
     (* TODO:
@@ -630,7 +632,7 @@ let run (type msg model) ?(env = empty) ?container
     try
       let (new_model : model), (cmd : msg Vdom.Cmd.t) = update !model msg in
       model := new_model;
-      Cmd.run env.cmds process cmd;
+      run_cmd container cmd;
       if not !pending_redraw then begin
         pending_redraw := true;
         Window.request_animation_frame window redraw
@@ -638,6 +640,8 @@ let run (type msg model) ?(env = empty) ?container
     with exn  ->
       Printf.printf "Error during vdom process: %s\n%!" (Printexc.to_string exn);
       raise exn
+  and run_cmd (parent : Js_browser.Element.t) cmd =
+    Cmd.run after_redraw (env.cmds @ (!global).cmds) process parent cmd
   in
 
   Element.append_child container (get_dom x);
@@ -648,9 +652,14 @@ let run (type msg model) ?(env = empty) ?container
     let ty = Event.type_ evt in
     try
       let tgt = Element.t_of_js (Event.target evt) in
-      let rec apply_handler = function
+      let rec apply_handler dom = function
         | [] -> None
         | hd :: tl ->
+            let may_cancel msg =
+              match msg with
+              | None -> None
+              | Some _ as r -> Event.prevent_default evt; r
+            in
             let res =
               match ty, hd with
               | "input", Handler (Input f) -> Some (f (Element.value tgt))
@@ -667,36 +676,41 @@ let run (type msg model) ?(env = empty) ?container
                   if changed then Some (f curr_value) else None
               | "change", Handler (ChangeIndex f) -> Some (f (Element.selected_index tgt))
               | "click", Handler (ChangeChecked f) -> Some (f (Element.checked tgt))
-              | "click", Handler (Click f) -> Some (f (mouse_event evt))
-              | "dblclick", Handler (DblClick f) -> Some (f (mouse_event evt))
+              | "click", Handler (Click f) -> Some (f (mouse_event dom evt))
+              | "click", Handler (ClickCancel f) -> may_cancel (f (mouse_event dom evt))
+              | "dblclick", Handler (DblClick f) -> Some (f (mouse_event dom evt))
               | "blur", Handler (Blur msg) -> Some msg
               | "focus", Handler (Focus msg) -> Some msg
-              | "mousemove", Handler (MouseMove f) -> Some (f (mouse_event evt))
-              | "mousedown", Handler (MouseDown f) -> Some (f (mouse_event evt))
+              | "mousemove", Handler (MouseMove f) -> Some (f (mouse_event dom evt))
+              | "mousedown", Handler (MouseDown f) -> Some (f (mouse_event dom evt))
+              | "mousedown", Handler (MouseDownCancel f) -> may_cancel (f (mouse_event dom evt))
+              | "mouseup", Handler (MouseUp f) -> Some (f (mouse_event dom evt))
+              | "mouseenter", Handler (MouseEnter f) when tgt = dom -> Some (f (mouse_event dom evt))
+              | "mouseleave", Handler (MouseLeave f) when tgt = dom -> Some (f (mouse_event dom evt))
+              | "mouseover", Handler (MouseOver f) -> Some (f (mouse_event dom evt))
               | "keydown", Handler (KeyDown f) -> Some (f (key_event evt))
-              | "keydown", Handler (KeyDownCancel f) ->
-                  begin match f (key_event evt) with
-                  | None -> None
-                  | Some _ as r -> Event.prevent_default evt; r
-                  end
-              | "contextmenu", Handler (ContextMenu f) -> Event.prevent_default evt; Some (f (mouse_event evt))
+              | "keydown", Handler (KeyDownCancel f) -> may_cancel (f (key_event evt))
+              | "keyup", Handler (KeyUp f) -> Some (f (key_event evt))
+              | "keyup", Handler (KeyUpCancel f) -> may_cancel (f (key_event evt))
+              | "contextmenu", Handler (ContextMenu f) -> Event.prevent_default evt; Some (f (mouse_event dom evt))
+              | "paste", Handler (Paste f) -> may_cancel (f (paste_event dom evt))
               | _ -> None
             in
             match res with
             | Some _ -> res
-            | None -> apply_handler tl
+            | None -> apply_handler dom tl
       in
       let rec propagate = function
         | Found {
             mapper;
-            inner = ( BElement {vdom = Element {attributes; _}; _}
-                    | BCustom  {vdom = Custom  {attributes; _}; _} );
+            inner = ( BElement {vdom = Element {attributes; _}; dom; _}
+                    | BCustom  {vdom = Custom  {attributes; _}; elt = {dom; _}; _} );
             parent;
           } ->
             (* see "cross browser emulation change" comment above *)
             if ty = "focus" && List.exists (function Handler (Change _) -> true | _ -> false) attributes then
               Element.set_attribute tgt prev_value_attribute (Element.value tgt);
-            begin match apply_handler attributes with
+            begin match apply_handler dom attributes with
             | None -> propagate parent
             | Some msg -> process (mapper msg)
             end
@@ -736,14 +750,19 @@ let run (type msg model) ?(env = empty) ?container
   let process_custom tgt event =
     Option.iter
       (fun root ->
+         let process mapper attributes =
+           let select_handler = function
+             | Handler h -> event.ev h
+             | _ -> None
+           in
+           let msgs = List.filter_map select_handler attributes in
+           List.iter (fun msg -> process (mapper msg)) msgs
+         in
          begin match vdom_of_dom root tgt with
+         | Found {mapper; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+             process mapper attributes
          | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
-             let select_handler = function
-               | Handler h -> event.ev h
-               | _ -> None
-             in
-             let msgs = List.filter_map select_handler attributes in
-             List.iter (fun msg -> process (mapper msg)) msgs
+             process mapper attributes
          | _ ->
              ()
          end
@@ -755,7 +774,7 @@ let run (type msg model) ?(env = empty) ?container
   let listeners =
     List.map
       (fun (event, capture) ->
-        Element.add_cancellable_event_listener container event onevent capture
+         Element.add_cancellable_event_listener container event onevent capture
       )
       [
         Event.Click, false;
@@ -765,12 +784,17 @@ let run (type msg model) ?(env = empty) ?container
         Event.Focus, true;
         Event.Blur, true;
         Event.Mousemove, true;
+        Event.Mouseenter, true;
+        Event.Mouseleave, true;
+        Event.Mouseover, true;
         Event.Mousedown, true;
+        Event.Mouseup, true;
         Event.Keydown, true;
         Event.Contextmenu, true;
+        Event.Paste, false; (* ? *)
       ]
   in
-  Cmd.run env.cmds process cmd0;
+  run_cmd container cmd0;
   let dispose () =
     Option.iter
       (fun root ->

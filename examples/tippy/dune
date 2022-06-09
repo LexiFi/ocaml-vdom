@@ -1,14 +1,9 @@
 (executable
  (name main)
- (libraries ocaml-vdom bindings)
- (modes js)
- (link_flags -no-check-prims))
+ (libraries vdom bindings)
+ (modes js))
 
-(rule
- (targets main.js)
- (deps main.bc.js)
- (action
-  (run cp %{deps} %{targets})))
+(rule (copy main.bc.js main.js))
 
 (alias
  (name DEFAULT)

@@ -30,7 +30,7 @@ module SelectionList = struct
         (fun i x ->
            let a = if i = cursor then
                [style "background-color" "#E0E0E0";
-                scroll_to_show] else [] in
+                scroll_to_show ~align_top:true] else [] in
            div
              ~a:(onclick (fun _ -> select x) :: class_ "link" :: a)
              [ text (show x) ]

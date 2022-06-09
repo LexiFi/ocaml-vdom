@@ -4,8 +4,6 @@
 
 open Vdom
 
-type model = int
-
 let update n = function
   | `Click -> n mod 5 + 1
 

@@ -1,14 +1,9 @@
 (executable
  (name counters)
  (libraries vdom)
- (modes js)
- (link_flags -no-check-prims))
+ (modes js))
 
-(rule
- (targets counters.js)
- (deps counters.bc.js)
- (action
-  (run cp %{deps} %{targets})))
+(rule (copy counters.bc.js counters.js))
 
 (alias
  (name DEFAULT)

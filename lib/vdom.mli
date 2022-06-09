@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright 2016 by LexiFi.                                                                         *)
+(* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
 
 
@@ -40,11 +40,13 @@ module Cmd: sig
   type 'msg t +=
     | Echo of 'msg
     | Batch of 'msg t list
+    | Bind: 'a t * ('a -> 'msg t) -> 'msg t
     | Map: ('a -> 'msg) * 'a t -> 'msg t
 
   val echo: 'msg -> 'msg t
   val batch: 'msg t list -> 'msg t
   val map: ('a -> 'msg) -> 'a t -> 'msg t
+  val bind: 'a t -> ('a -> 'msg t) -> 'msg t
 end
 
 (** {2 Custom elements} *)
@@ -57,13 +59,18 @@ end
 
 (** {2 Properties and event handlers} *)
 
-type mouse_event = {x: int; y: int; page_x: float; page_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
+type mouse_event = {x: int; y: int; page_x: float; page_y: float; element_x: float; element_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
+type paste_event = {text: string; selection_start: int; selection_end: int}
+
 type 'msg event_handler =
   | MouseDown of (mouse_event -> 'msg)
+  | MouseDownCancel of (mouse_event -> 'msg option)
+  | MouseUp of (mouse_event -> 'msg)
   | Click of (mouse_event -> 'msg)
+  | ClickCancel of (mouse_event -> 'msg option)
   | DblClick of (mouse_event -> 'msg)
   | Focus of 'msg
   | Blur of 'msg
@@ -72,9 +79,15 @@ type 'msg event_handler =
   | ChangeIndex of (int -> 'msg)
   | ChangeChecked of (bool -> 'msg)
   | MouseMove of (mouse_event -> 'msg)
+  | MouseEnter of (mouse_event -> 'msg)
+  | MouseLeave of (mouse_event -> 'msg)
+  | MouseOver of (mouse_event -> 'msg)
   | KeyDown of (key_event -> 'msg)
   | KeyDownCancel of (key_event -> 'msg option)
+  | KeyUp of (key_event -> 'msg)
+  | KeyUpCancel of (key_event -> 'msg option)
   | ContextMenu of (mouse_event -> 'msg)
+  | Paste of (paste_event -> 'msg option)
   | CustomEvent of (Custom.event -> 'msg option)
 
 type prop_val =
@@ -95,7 +108,10 @@ type 'msg attribute =
 (** {3 Event handlers} *)
 
 val onmousedown: (mouse_event -> 'msg) -> 'msg attribute
+val onmousedown_cancel: (mouse_event -> 'msg option) -> 'msg attribute
+val onmouseup: (mouse_event -> 'msg) -> 'msg attribute
 val onclick: (mouse_event -> 'msg) -> 'msg attribute
+val onclick_cancel: (mouse_event -> 'msg option) -> 'msg attribute
 val ondblclick: (mouse_event -> 'msg) -> 'msg attribute
 val oncontextmenu: (mouse_event -> 'msg) -> 'msg attribute
 val onfocus: 'msg -> 'msg attribute
@@ -112,10 +128,17 @@ val onchange: (string -> 'msg) -> 'msg attribute
 val onchange_index: (int -> 'msg) -> 'msg attribute
 (** Pass the [selected_index] property of the event target. *)
 
-val onmousemove:  (mouse_event -> 'msg) -> 'msg attribute
+val onmousemove: (mouse_event -> 'msg) -> 'msg attribute
+val onmouseenter: (mouse_event -> 'msg) -> 'msg attribute
+val onmouseleave: (mouse_event -> 'msg) -> 'msg attribute
+val onmouseover: (mouse_event -> 'msg) -> 'msg attribute
 val onkeydown: (key_event -> 'msg) -> 'msg attribute
 val onkeydown_cancel: (key_event -> 'msg option) -> 'msg attribute
+val onkeyup: (key_event -> 'msg) -> 'msg attribute
+val onkeyup_cancel: (key_event -> 'msg option) -> 'msg attribute
+val onpaste: (paste_event -> 'msg option) -> 'msg attribute
 val oncustomevent: (Custom.event -> 'msg option) -> 'msg attribute
+
 
 (** {3 Generic DOM properties} *)
 
@@ -131,7 +154,7 @@ val float_prop: string -> float -> 'msg attribute
 val style: string -> string -> 'msg attribute
 (** A sub-field of the "style" DOM property. *)
 
-val attr: string -> string -> 'mg attribute
+val attr: string -> string -> 'msg attribute
 val int_attr: string -> int -> 'msg attribute
 val float_attr: string -> float -> 'msg attribute
 
@@ -150,7 +173,7 @@ val add_class: string -> 'msg attribute list -> 'msg attribute list
 (** Pseudo-attributes are interpreted in a special way
     by the infrastructure. *)
 
-val scroll_to_show: 'msg attribute
+val scroll_to_show: align_top:bool -> 'msg attribute
 (** When this pseudo-attribute is first applied to an element, its
     parent is automatically scrolled (vertically) to show the
     element. *)
@@ -159,14 +182,18 @@ val autofocus: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the
     element gets focused. *)
 
-val relative_dropdown: int -> 'msg attribute
+val autofocus_if_visible: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the
-    element is moved to a fixed position below its parents. *)
+    element gets focused if the element is visible in the viewport. *)
 
 val autofocus_counter: int -> 'msg attribute
 (** When this pseudo-attribute is first applied to an element, or applied
     with a different counter as the previous time, the
     element gets focused. *)
+
+val select: 'msg attribute
+(** When this pseudo-attribute is first applied to an input or textarea element,
+    select the content. *)
 
 (** {3 Events} *)
 
@@ -286,3 +313,6 @@ val simple_app:
   unit ->
   ('model, 'msg) app
 (** A simple app does not trigger commands. *)
+
+val to_html: 'msg vdom -> string
+(** Convert to HTML *)

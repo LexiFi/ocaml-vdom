@@ -1,14 +1,9 @@
 (executable
  (name svg)
  (libraries vdom)
- (modes js)
- (link_flags -no-check-prims))
+ (modes js))
 
-(rule
- (targets svg.js)
- (deps svg.bc.js)
- (action
-  (run cp %{deps} %{targets})))
+(rule (copy svg.bc.js svg.js))
 
 (alias
  (name DEFAULT)

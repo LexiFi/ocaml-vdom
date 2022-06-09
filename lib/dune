@@ -5,10 +5,16 @@
   (run %{bin:gen_js_api} %{deps})))
 
 (library
- (name vdom)
- (public_name ocaml-vdom)
+ (name vdom_base)
+ (public_name vdom.base)
+ (wrapped false)
+ (modules vdom))
+
+(library
+ (name vdom_js)
+ (public_name vdom)
  (synopsis "Virtual Dom")
- (libraries gen_js_api)
+ (libraries gen_js_api vdom_base)
  (wrapped false)
  (modes byte)
- (js_of_ocaml))
+ (modules vdom_blit js_browser))
