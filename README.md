@@ -30,22 +30,22 @@ Dependencies
 Installation (with OPAM)
 ------------------------
 
-````
+```
 opam install ocaml-vdom
-````
+```
 
 
 Manual installation
 -------------------
 
-````
+```bash
 git clone https://github.com/LexiFi/ocaml-vdom.git
 cd ocaml-vdom
 make all
 make doc
 make examples   # Optional (browse index.html files in _build/default/examples to try out)
 make install
-````
+```
 
 
 DOM bindings
@@ -81,12 +81,12 @@ to modify the current state.  This function can also spawn "commands"
 
 The implementation of this architecture relies on two modules:
 
-  - [`Vdom`](lib/vdom.mli) : definition of the VDOM tree and of "virtual
+  - [`Vdom`](lib/vdom.mli): definition of the VDOM tree and of "virtual
     applications".  This is a "pure" module, which does not depend on
     any Javascript bindings (it could be executed on the server-side,
     e.g. for automated testing).
 
-  - [`Vdom_blit`](lib/vdom_blit.mli) : rendering of virtual applications into the actual
+  - [`Vdom_blit`](lib/vdom_blit.mli): rendering of virtual applications into the actual
     DOM.  This modules implements the initial "blit" operation
     (rendering a VDOM tree to the DOM) and the "diff/synchronization"
     algorithm.  It also manages the state of a running application.
@@ -98,7 +98,7 @@ This implementation of VDOM has some specificities:
 
   - Each node in the VDOM tree has a "key" string field.  By default,
     the key corresponds to the tag name for elements but it can be
-    overriden.  The key is used by the synchronization algorithm
+    overridden.  The key is used by the synchronization algorithm
     as follows: when synchronizing the old and new children of an
     element, the children are first grouped by key.  Two children with
     different keys are never synchronized, and the sequence of old and
@@ -118,7 +118,7 @@ This implementation of VDOM has some specificities:
     and "new" VDOMs are diffed, if the event handler on the DOM node
     should be refreshed.
 
-  - A "bridge" structure in created in `Vdom_blit` to represent the
+  - A "bridge" structure is created in `Vdom_blit` to represent the
     correspondence between VDOM and DOM nodes.  This structure mimics
     the shape of both trees and avoids having to query the concrete
     DOM to navigate in the tree.
@@ -159,7 +159,7 @@ Usage
 
 A simple one-module application would look like:
 
-````ocaml
+```ocaml
 open Vdom
 
 (* Definition of the vdom application *)
@@ -181,16 +181,18 @@ let run () =
   |> Element.append_child (Document.body document)   (* insert the DOM in the document *)
 
 let () = Window.set_onload window run
-````
+```
 
 Compiling this to Javascript:
 
-    ocamlfind ocamlc -package ocaml-vdom -no-check-prims -linkpkg -o myprog.exe myprog.ml
-    js_of_ocaml +gen_js_api/ojs_runtime.js -o myprog.js myprog.exe
+```
+ocamlfind ocamlc -package ocaml-vdom -no-check-prims -linkpkg -o myprog.exe myprog.ml
+js_of_ocaml +gen_js_api/ojs_runtime.js -o myprog.js myprog.exe
+```
 
 The Javascript code can then be used from a simple HTML file such as:
 
-````html
+```html
 <html>
   <head>
     <script src="myprog.js"></script>
@@ -198,15 +200,15 @@ The Javascript code can then be used from a simple HTML file such as:
   <body>
   </body>
 </html>
-````
+```
 
-Examples: [`Demo`](examples/demo/demo.ml), [`Counters`](examples/counters/counters.ml)
+Examples: [`Demo`](examples/demo/demo.ml), [`Counters`](examples/counters/counters.ml).
 
 Third-party examples:
   `TodoMVC`
     ([source](https://github.com/slegrand45/examples_ocaml_vdom/blob/master/todomvc/todomvc.ml),
      [demo](https://slegrand45.github.io/examples_ocaml_vdom.site/todomvc/)),
-  [`With Eliom service`](https://github.com/slegrand45/examples_ocsigen/blob/master/eliom/with-ocaml-vdom/simple/mixvdomandeliom.eliom)
+  [`With Eliom service`](https://github.com/slegrand45/examples_ocsigen/blob/master/eliom/with-ocaml-vdom/simple/mixvdomandeliom.eliom).
 
 
 About
