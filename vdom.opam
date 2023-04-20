@@ -14,7 +14,7 @@ depends: [
   "dune" {>= "3.0"}
   "gen_js_api" {>= "1.0.6"}
   "js_of_ocaml-compiler"
-  "odoc" {with-doc}
+  "odoc"
 ]
 build: [
   ["dune" "subst"] {dev}
