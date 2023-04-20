@@ -25,6 +25,7 @@ Dependencies
 
   - gen_js_api
 
+  - odoc
 
 
 Installation (with OPAM)
@@ -32,6 +33,12 @@ Installation (with OPAM)
 
 ```
 opam install ocaml-vdom
+```
+
+Install dependencies
+------------------------
+```
+opam install ocaml-vdom --deps-only
 ```
 
 
@@ -56,10 +63,10 @@ other common client-side Javascript APIs.
 
 It is implemented with
 [gen_js_api](https://github.com/LexiFi/gen_js_api), making it
-realistic to have it working with Bucklescript in the future.  This
+realistic to have it working with ReScript in the future.  This
 would open the door to writing client-side web applications in OCaml
 that could be compiled to Javascript either with js_of_ocaml or
-Bucklescript.
+ReScript.
 
 
 VDOM
