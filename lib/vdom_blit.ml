@@ -33,7 +33,7 @@ module Cmd = struct
       | x ->
           let ctx = {send_msg = p; container = elt; after_redraw = after} in
           let rec loop = function
-            | [] -> Mlfi_isdatypes.ffailwith "No command handler found! (%s)" (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val x))
+            | [] -> failwith "No command handler found!"
             | hd :: tl ->
                 if hd.f ctx x then ()
                 else loop tl
