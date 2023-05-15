@@ -10,7 +10,8 @@ let init =
 let view n =
   Vdom.div [
     Vdom.input ~a:[Vdom.value (string_of_int n); Vdom.bool_prop "readOnly" true] [];
-    Vdom.elt "button" ~a:[Vdom.type_button; Vdom.onclick (fun _ -> Clicked)] []
+    Vdom.elt "button" ~a:[Vdom.type_button; Vdom.onclick (fun _ -> Clicked)]
+      [Vdom.text "Count"]
   ]
 
 let update (model : model) Clicked =
