@@ -7,9 +7,9 @@ type msg =
 let init =
   0
 
-let view n =
+let view (model : model) =
   Vdom.div [
-    Vdom.input ~a:[Vdom.value (string_of_int n); Vdom.bool_prop "readOnly" true] [];
+    Vdom.input ~a:[Vdom.value (string_of_int model); Vdom.bool_prop "readOnly" true] [];
     Vdom.elt "button" ~a:[Vdom.type_button; Vdom.onclick (fun _ -> Clicked)]
       [Vdom.text "Count"]
   ]

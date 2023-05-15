@@ -1,4 +1,4 @@
 (executable
- (name counter)
+ (name temperature)
  (modes js)
  (libraries vdom))
