@@ -1,4 +1,4 @@
 (executable
- (name flight)
+ (name index)
  (modes js)
  (libraries vdom))
