@@ -1,7 +1,0 @@
-#container {
-  display: flex;
-}
-
-#container > * {
-  flex: auto;
-}

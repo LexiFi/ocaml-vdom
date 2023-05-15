@@ -1,3 +1,10 @@
+(rule
+ (target examples.ml)
+ (deps (glob_files_rec %{project_root}/examples/7guis/**index.ml))
+ (action
+  (with-stdout-to %{target}
+   (run %{project_root}/tools/gen.exe %{deps}))))
+
 (executable
  (name index)
  (modes byte)
@@ -21,4 +28,4 @@
 
 (alias
  (name default)
- (deps index.css index.js index.html editor.js))
+ (deps index.js index.html editor.js))

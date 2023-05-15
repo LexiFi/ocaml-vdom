@@ -1,13 +1,25 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" href="index.css">
+    <meta charset="utf-8">
+    <style>
+      #container {
+        display: flex;
+      }
+      #container > * {
+        flex: auto;
+      }
+    </style>
   </head>
   <body>
     <div id="container">
       <div>
         <div>
           <button id="run">Run</button>
+        </div>
+        <div>
+          <select id="examples">
+          </select>
         </div>
         <div id="editor"></div>
       </div>
