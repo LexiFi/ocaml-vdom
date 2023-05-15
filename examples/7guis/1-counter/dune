@@ -1,0 +1,10 @@
+(executable
+ (name counter)
+ (modes js)
+ (libraries vdom))
+
+(install
+ (section doc)
+ (files
+  (index.html as examples/1-counter/index.html)
+  (counter.bc.js as examples/1-counter/counter.bc.js)))
