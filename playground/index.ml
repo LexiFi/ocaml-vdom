@@ -29,6 +29,7 @@ let set_value s =
   ignore (Ojs.call editor "dispatch" [|tr|] : Ojs.t)
 
 let run _ =
+  Option.iter Js_browser.Element.remove_all_children (Js_browser.Document.get_element_by_id Js_browser.document "container");
   let txt = get_value () in
   (* let null = open_out "/dev/null" in *)
   let ppf = Format.std_formatter in (* Format.formatter_of_out_channel null in *)

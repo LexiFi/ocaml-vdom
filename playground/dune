@@ -5,6 +5,8 @@
   (with-stdout-to %{target}
    (run %{project_root}/tools/gen.exe %{deps}))))
 
+(data_only_dirs editor)
+
 (executable
  (name index)
  (modes byte)
@@ -16,10 +18,7 @@
  (action
   (run jsoo_listunits -o %{target} stdlib %{lib:vdom.base:vdom_base.cma} %{lib:vdom:vdom_js.cma})))
 
-(rule
- (target editor.js)
- (deps (source_tree editor))
- (action (run make -C editor)))
+(copy_files editor/editor.js)
 
 (rule
  (target index.js)

@@ -3,27 +3,46 @@
   <head>
     <meta charset="utf-8">
     <style>
-      #container {
+      body {
+        margin: 0;
+      }
+      .row {
         display: flex;
       }
-      #container > * {
-        flex: auto;
+      .column {
+        display: flex;
+        flex-direction: column;
+        width: 50vw;
+        max-width: 50vw;
+        height: 100vh;
+        max-height: 100vh;
+      }
+      .cm-scroller {
+        overflow: auto;
+      }
+      #editor {
+        overflow: hidden;
+        flex: 1;
+      }
+      .cm-editor {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
       }
     </style>
   </head>
   <body>
-    <div id="container">
-      <div>
+    <div class="row">
+      <div class="column">
         <div>
           <button id="run">Run</button>
-        </div>
-        <div>
           <select id="examples">
           </select>
         </div>
         <div id="editor"></div>
       </div>
-      <div id="sandbox"></div>
+      <div class="column" id="container"></div>
     </div>
     <script src="editor.js"></script>
     <script src="index.js"></script>

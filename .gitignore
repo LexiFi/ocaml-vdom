@@ -1,1 +1,5 @@
 /_build
+/playground/editor/node_modules
+/playground/editor/package-lock.json
+/playground/editor/editor.js
+/playground/editor.js
