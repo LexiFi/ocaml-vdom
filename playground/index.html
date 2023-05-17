@@ -10,6 +10,8 @@
         height: 100vh;
       }
       .row {
+        overflow: hidden;
+        height: 100%;
         display: flex;
         flex: 1;
       }
@@ -18,7 +20,11 @@
       }
       #editor {
         overflow: hidden;
-        height: 100%;
+        flex: 1;
+      }
+      #left {
+        display: flex;
+        flex-direction: column;;
       }
       iframe {
         height: 100%;

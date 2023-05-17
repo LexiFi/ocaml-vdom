@@ -13,8 +13,9 @@ window.editor = new EditorView({
   extensions: [
     basicSetup,
     oneDark,
-    StreamLanguage.define(oCaml)
-    // lineWrapping
+    StreamLanguage.define(oCaml),
+    EditorView.lineWrapping
   ],
+  lineWrapping: true,
   parent: document.getElementById('editor')
 })
