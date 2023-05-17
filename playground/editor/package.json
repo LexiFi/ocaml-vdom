@@ -6,6 +6,8 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@rollup/plugin-node-resolve": "^15.0.2",
     "codemirror": "^6.0.1",
-    "rollup": "^3.21.7"
+    "rollup": "^3.22.0",
+    "split": "^1.0.1",
+    "split.js": "^1.6.5"
   }
 }

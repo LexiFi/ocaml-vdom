@@ -9,9 +9,16 @@
 
 (executable
  (name index)
+ (modes js)
+ (libraries vdom)
+ (modules index examples))
+
+(executable
+ (name runner)
  (modes byte)
  (link_flags -linkall)
- (libraries js_of_ocaml-toplevel vdom))
+ (libraries js_of_ocaml-toplevel vdom)
+ (modules runner))
 
 (rule
  (target exports.txt)
@@ -20,11 +27,13 @@
 
 (copy_files editor/editor.js)
 
+(rule (copy index.bc.js index.js))
+
 (rule
- (target index.js)
+ (target runner.js)
  (action
-  (run js_of_ocaml --export %{dep:exports.txt} --toplevel --pretty %{dep:index.bc} -o %{target})))
+  (run js_of_ocaml --export %{dep:exports.txt} --toplevel --pretty %{dep:runner.bc} -o %{target})))
 
 (alias
  (name default)
- (deps index.js index.html editor.js))
+ (deps editor.js runner.js runner.html index.js index.html))

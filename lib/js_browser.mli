@@ -718,6 +718,7 @@ module Window: sig
 end
 
 module IFrame: sig
+  val set_src: Element.t -> string -> unit [@@js.set]
   val content_window: Element.t -> Window.t option [@@js.get]
   val content_document: Element.t -> Document.t option [@@js.get]
 end

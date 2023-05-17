@@ -1,6 +1,7 @@
 DEPS = \
   rollup \
   codemirror \
+  split.js \
   @rollup/plugin-node-resolve \
   @codemirror/theme-one-dark \
   @codemirror/language \

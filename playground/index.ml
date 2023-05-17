@@ -1,4 +1,4 @@
-open Js_of_ocaml_toplevel
+open Js_browser
 
 let editor =
   Ojs.get_prop_ascii (Ojs.get_prop_ascii Ojs.global "window") "editor"
@@ -28,35 +28,40 @@ let set_value s =
   in
   ignore (Ojs.call editor "dispatch" [|tr|] : Ojs.t)
 
-let run _ =
-  Option.iter Js_browser.Element.remove_all_children (Js_browser.Document.get_element_by_id Js_browser.document "container");
-  let txt = get_value () in
-  (* let null = open_out "/dev/null" in *)
-  let ppf = Format.std_formatter in (* Format.formatter_of_out_channel null in *)
-  ignore (JsooTop.use ppf txt : bool)
-
 let () =
-  JsooTop.initialize ()
-
-let () =
-  match Js_browser.Document.get_element_by_id Js_browser.document "examples" with
+  match Document.get_element_by_id document "examples" with
   | None -> ()
   | Some examples ->
       let option (name, _) =
-        let elt = Js_browser.Document.create_element Js_browser.document "option" in
-        Js_browser.Element.append_child elt (Js_browser.Document.create_text_node Js_browser.document name);
+        let elt = Document.create_element document "option" in
+        Element.append_child elt (Document.create_text_node document name);
         elt
       in
       let onchange evt =
-        let target = Js_browser.Event.target evt in
+        let target = Event.target evt in
         let idx = Ojs.int_of_js (Ojs.get_prop_ascii target "selectedIndex") in
         set_value (snd Examples.v.(idx))
       in
-      Array.iter (fun v -> Js_browser.Element.append_child examples (option v)) Examples.v;
-      Js_browser.Element.add_event_listener examples Js_browser.Event.Change onchange true
+      Array.iter (fun v -> Element.append_child examples (option v)) Examples.v;
+      Element.add_event_listener examples Change onchange true
+
+let run _ =
+  match Document.get_element_by_id document "right" with
+  | None -> ()
+  | Some right ->
+      Element.remove_all_children right;
+      let iframe = Document.create_element document "iframe" in
+      IFrame.set_src iframe "runner.html";
+      Element.append_child right iframe;
+      begin match IFrame.content_window iframe with
+      | None -> ()
+      | Some window ->
+          Element.add_event_listener iframe Load (fun _ ->
+              Window.post_message window (Ojs.string_to_js (get_value ())) "*"
+            ) false
+      end
 
 let () =
-  match Js_browser.Document.get_element_by_id Js_browser.document "run" with
+  match Document.get_element_by_id document "run" with
   | None -> ()
-  | Some button ->
-      Js_browser.Element.add_event_listener button Click run true
+  | Some button -> Element.add_event_listener button Click run true

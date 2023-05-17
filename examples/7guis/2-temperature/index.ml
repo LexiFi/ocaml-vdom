@@ -43,7 +43,5 @@ let update model = function
 
 let _ =
   let app = Vdom.simple_app ~init ~update ~view () in
-  let container =
-    Option.get (Js_browser.Document.get_element_by_id Js_browser.document "container")
-  in
+  let container = Js_browser.Document.body Js_browser.document in
   Vdom_blit.dom (Vdom_blit.run ~container app)
