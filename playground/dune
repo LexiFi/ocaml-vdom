@@ -36,4 +36,4 @@
 
 (alias
  (name default)
- (deps editor.js runner.js runner.html index.js index.html))
+ (deps (source_tree vendor) runner.js runner.html index.js index.html))

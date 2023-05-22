@@ -4,29 +4,10 @@ let editor =
   Ojs.get_prop_ascii (Ojs.get_prop_ascii Ojs.global "window") "editor"
 
 let get_value () =
-  let state = Ojs.get_prop_ascii editor "state" in
-  Ojs.string_of_js (Ojs.call state "sliceDoc" [||])
+  Ojs.string_of_js (Ojs.call editor "getValue" [||])
 
 let set_value s =
-  let tr =
-    let changes =
-      let x = Ojs.empty_obj () in
-      Ojs.set_prop_ascii x "from" (Ojs.int_to_js 0);
-      let length =
-        Ojs.int_of_js
-          (Ojs.get_prop_ascii
-             (Ojs.get_prop_ascii
-                (Ojs.get_prop_ascii editor "state") "doc") "length")
-      in
-      Ojs.set_prop_ascii x "to" (Ojs.int_to_js length);
-      Ojs.set_prop_ascii x "insert" (Ojs.string_to_js s);
-      x
-    in
-    let x = Ojs.empty_obj () in
-    Ojs.set_prop_ascii x "changes" changes;
-    x
-  in
-  ignore (Ojs.call editor "dispatch" [|tr|] : Ojs.t)
+  ignore (Ojs.call editor "setValue" [|Ojs.string_to_js s|] : Ojs.t)
 
 let () =
   match Document.get_element_by_id document "examples" with
