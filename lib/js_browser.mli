@@ -586,6 +586,8 @@ module Document: sig
   val get_element_by_id: t -> string -> Element.t option [@@js.call]
   val get_elements_by_class_name: t -> string -> Element.t array [@@js.call]
 
+  val element_from_point: t -> float -> float -> Element.t [@@js.call]
+
   val body: t -> Element.t [@@js.get]
   val document_element: t -> Element.t [@@js.get]
   val active_element: t -> Element.t [@@js.get]
@@ -728,6 +730,23 @@ module JSON : sig
   [@@js.global "JSON.parse"]
   val stringify: Ojs.t -> string
   [@@js.global "JSON.stringify"]
+end
+
+module Matrix : sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+  val inverse: t -> t [@@js.call]
+end
+
+module Point : sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+  val create: float -> float -> t [@@js.new "DOMPoint"]
+  val x: t -> float [@@js.get]
+  val y: t -> float [@@js.get]
+  val matrix_transform: t -> Matrix.t -> t [@@js.call]
 end
 
 module FileReader : sig
@@ -1000,6 +1019,13 @@ module Svg : sig
     val create_moveto_rel: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegMovetoRel"]
     val create_lineto_abs: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegLinetoAbs"]
     val create_lineto_rel: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegLinetoRel"]
+  end
+
+  module Element: sig
+    type t
+    val t_of_js: Ojs.t -> t
+    val t_to_js: t -> Ojs.t
+    val get_screen_CTM: t -> Matrix.t [@@js.call]
   end
 end
 
