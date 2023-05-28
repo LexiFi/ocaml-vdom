@@ -35,7 +35,7 @@
 (** {2 Commands} *)
 
 module Cmd: sig
-  type 'msg t = ..
+  type +'msg t = ..
 
   type 'msg t +=
     | Echo of 'msg
@@ -208,6 +208,10 @@ val custom_event: Custom.event -> event
 
 (** {2 VDOM} *)
 
+type (_, _) eq = Refl: ('a, 'a) eq
+type 'a component_id
+val register_component_id: unit -> 'a component_id
+val same_component: 'a component_id -> 'b component_id -> ('a, 'b) eq option
 
 type +'msg vdom =
   | Text of
@@ -239,6 +243,14 @@ type +'msg vdom =
         key: string;
         f: ('a -> 'msg vdom);
         arg: 'a;
+      } -> 'msg vdom
+  | Component:
+      {
+        id: 'model component_id;
+        key: string;
+        init: 'model;
+        update: 'model -> 'priv -> 'model * 'priv Cmd.t * 'msg Cmd.t;
+        view: 'model -> 'priv vdom;
       } -> 'msg vdom
   | Custom of
       {
@@ -324,3 +336,12 @@ val simple_app:
 
 val to_html: 'msg vdom -> string
 (** Convert to HTML *)
+
+type 'model component_factory =
+  { build: 'priv 'pub. ?key:string ->
+    init:'model ->
+    update:('model -> 'priv -> 'model * 'priv Cmd.t * 'pub Cmd.t) -> ('model -> 'priv vdom) -> 'pub vdom }
+
+val component_factory: unit -> 'model component_factory
+
+val ret: ?priv:'priv Cmd.t list -> ?pub:'pub Cmd.t list -> 'model -> 'model * 'priv Cmd.t * 'pub Cmd.t

@@ -4,9 +4,9 @@
 
 
 module Cmd = struct
-  type 'msg t = ..
+  type +'msg t = ..
 
-  type 'msg t +=
+  type +'msg t +=
     | Echo of 'msg
     | Batch of 'msg t list
     | Bind: 'a t * ('a -> 'msg t) -> 'msg t
@@ -125,6 +125,43 @@ let add_class x attrs =
   else
     class_ x :: attrs
 
+type 'a component_type = ..
+
+type 'a component_id = {
+  id: int;
+  component_type: 'a component_type
+}
+
+type (_, _) eq = Refl: ('a, 'a) eq
+
+type registered_component_id =
+  { cmp: 'a 'b.'a component_type -> 'b component_type -> ('a, 'b) eq option }
+
+let registered_component_next_id = ref 0
+let registered_component_ids = Hashtbl.create 3
+
+let same_component (type a b) (a : a component_id) (b : b component_id) : (a, b) eq option =
+  match Hashtbl.find_opt registered_component_ids a.id with
+  | Some { cmp } -> cmp a.component_type b.component_type
+  | None -> None
+
+let register_component_id (type t) () : t component_id =
+  let id = !registered_component_next_id in
+  incr registered_component_next_id;
+  let module M = struct
+    type _ component_type += Witness: t component_type
+  end
+  in
+  let cmp: 'a 'b.'a component_type -> 'b component_type -> ('a, 'b) eq option =
+    fun (type a b) (a: a component_type) (b : b component_type) : (a, b) eq option ->
+      match a, b with
+      | M.Witness, M.Witness -> Some Refl
+      | _ -> None
+  in
+  Hashtbl.add registered_component_ids id { cmp };
+  { id ; component_type = M.Witness }
+
+
 type +'msg vdom =
   | Text of
       {
@@ -132,10 +169,10 @@ type +'msg vdom =
         txt: string;
       }
   | Fragment of
-    {
-      key: string;
-      children: 'msg vdom list;
-    }
+      {
+        key: string;
+        children: 'msg vdom list;
+      }
   | Element of
       {
         key: string;
@@ -155,6 +192,14 @@ type +'msg vdom =
         key: string;
         f: ('a -> 'msg vdom);
         arg: 'a;
+      } -> 'msg vdom
+  | Component:
+      {
+        id: 'model component_id;
+        key: string;
+        init: 'model;
+        update: 'model -> 'priv -> 'model * 'priv Cmd.t * 'msg Cmd.t;
+        view: 'model -> 'priv vdom;
       } -> 'msg vdom
   | Custom of
       {
@@ -313,7 +358,27 @@ let to_html vdom =
         aux child
     | Memo {key=_; f; arg} ->
         aux (f arg)
+    | Component _
     | Custom _ -> ()
   in
   aux vdom;
   Buffer.contents b
+
+type 'model component_factory =
+  { build: 'priv 'pub. ?key:string -> init:'model ->
+      update:('model -> 'priv -> 'model * 'priv Cmd.t * 'pub Cmd.t) ->
+      ('model -> 'priv vdom) -> 'pub vdom }
+
+let component_factory () =
+  let id = register_component_id () in
+  let build ?key ~init ~update view =
+    let key =
+      match key with
+      | Some k -> k
+      | None -> "fragment"^(string_of_int id.id)
+    in
+    Component {key; id; init; update; view}
+  in
+  { build }
+
+let ret ?(priv = []) ?(pub = []) model = model, Cmd.batch priv, Cmd.batch pub

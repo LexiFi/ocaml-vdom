@@ -2,7 +2,6 @@
 (* See the attached LICENSE file.                                                                    *)
 (* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
-
 open Js_browser
 open Vdom
 
@@ -90,6 +89,12 @@ type 'msg ctrl =
   | BText of {vdom: 'msg vdom; dom: Element.t}
   | BFragment of {vdom: 'msg vdom; doms: Element.t list; children: 'msg ctrl list}
   | BElement of {vdom: 'msg vdom; dom: Element.t; children: 'msg ctrl list}
+  | BComponent:
+      {vdom: 'msg vdom; doms: Element.t list; id: 'model component_id;
+       state: 'model ref;
+       child: 'priv ctrl;
+       process: 'priv -> unit;
+      } -> 'msg ctrl
   | BMap: {vdom: 'msg vdom; doms: Element.t list; f: ('submsg -> 'msg); child: 'submsg ctrl} -> 'msg ctrl
   | BMemo: {vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl} -> 'msg ctrl
   | BCustom of {vdom: 'msg vdom; elt: Custom.t}
@@ -99,6 +104,7 @@ let get_doms = function
   | BFragment x -> x.doms
   | BElement x -> [x.dom]
   | BMap x -> x.doms
+  | BComponent x -> x.doms
   | BMemo x -> x.doms
   | BCustom x -> [x.elt.dom]
 
@@ -109,6 +115,7 @@ let get_vdom = function
   | BMap x -> x.vdom
   | BMemo x -> x.vdom
   | BCustom x -> x.vdom
+  | BComponent x -> x.vdom
 
 let key_of_vdom = function
   | Text {key; _}
@@ -116,9 +123,9 @@ let key_of_vdom = function
   | Element {key; _}
   | Map {key; _}
   | Memo {key; _}
+  | Component {key; _}
   | Custom {key; _} ->
       key
-
 
 let eval_prop = function
   | String x -> Ojs.string_to_js x
@@ -228,14 +235,22 @@ let global = ref empty
 
 let register e = global := merge [e; !global]
 
-type ctx =
+type 'msg ctx =
   {
     process_custom: (Element.t -> event -> unit);
     custom_handlers: Custom.handler list;
     after_redraw: ((unit -> unit) -> unit);
+    run_cmd: 'msg. ('msg -> unit) -> Element.t -> 'msg Vdom.Cmd.t -> unit;
+    process: 'msg -> unit;
   }
 
-let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
+let rec process_component ctx parent state update msg =
+  let model, priv, pub = update !state msg in
+  state := model;
+  ctx.run_cmd (process_component ctx parent state update) parent priv;
+  ctx.run_cmd ctx.process parent pub
+
+let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
   fun ~parent ctx vdom ->
   match vdom with
   | Text {txt; key = _} ->
@@ -244,10 +259,17 @@ let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
   | Fragment {children; key = _} ->
       let children = List.map (blit ~parent ctx) children in
       let doms = List.concat_map get_doms children in
-      BFragment {vdom; doms; children }
+      BFragment { vdom; doms; children }
+
+  | Component {key = _; id; init; view; update } ->
+      let state = ref init in
+      let process = process_component ctx parent state update in
+      let child = blit ~parent { ctx with process } (view init) in
+      BComponent { vdom; id; state; process; doms = get_doms child; child }
 
   | Map {f; child; key = _} ->
-      let child = blit ~parent ctx child in
+      let process msg = ctx.process (f msg) in
+      let child = blit ~parent { ctx with process } child in
       BMap {vdom; doms = get_doms child; f; child}
 
   | Memo {f; arg; key = _} ->
@@ -372,6 +394,7 @@ let rec dispose : type msg. msg ctrl -> unit = fun ctrl ->
   | BFragment {children; _}
   | BElement {children; _} -> List.iter dispose children
   | BMap {child; _} -> dispose child
+  | BComponent {child; _} -> dispose child
   | BMemo {child; _} -> dispose child
 
 let print_element node =
@@ -395,9 +418,28 @@ let insert_before parent o n =
     Printf.printf "replace_child(%s, %s, %s)\n" (print_element parent) (print_element o) (print_element n);
   Element.insert_before parent o n
 
-let rec sync : type old_msg msg. ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl -> msg vdom -> msg ctrl =
+let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl -> msg vdom -> msg ctrl =
   fun ctx parent prev_move next old vdom ->
-
+  let fallback () =
+    let x = blit ~parent ctx vdom in
+    let rec loop l1 l2 =
+      match l1, l2 with
+      | h1::t1, h2::t2 ->
+          replace_child parent h1 h2;
+          loop t1 t2
+      | [], l ->
+          List.iter (remove_child parent) l
+      | l, [] ->
+          List.iter (fun c -> insert_before parent c !next) l
+    in
+    let loop l1 l2 =
+      Printf.printf "%d, %d\n%!" (List.length l1) (List.length l2);
+      loop l1 l2
+    in
+    loop (get_doms x) (get_doms old);
+    dispose old;
+    x
+  in
   match old, vdom with
   | _ when (vdom : msg vdom) == (Obj.magic (get_vdom old : old_msg vdom)) ->
       (* If old and new vdom are physically identical, it is safe to reuse the old ctrl. *)
@@ -407,8 +449,19 @@ let rec sync : type old_msg msg. ctx -> Element.t -> bool ref -> Element.t ref -
       BText {vdom; dom}
 
   | BMap {child = c1; _}, Map {f; child = c2; key = _} ->
-      let child = sync ctx parent prev_move next c1 c2 in
+      let process msg = ctx.process (f msg) in
+      let child = sync { ctx with process } parent prev_move next c1 c2 in
       BMap {vdom; doms = get_doms child; child; f}
+
+  | BComponent {id = id1; state; child = c1; _}, Component { id = id2; view; update; _ } ->
+      begin match same_component id1 id2 with
+      | None -> fallback ()
+      | Some Refl ->
+          let process = process_component ctx parent state update in
+          let c2 = view !state in
+          let child = sync { ctx with process } parent prev_move next c1 c2 in
+          BComponent {id = id1; vdom; doms = get_doms child; state; process; child}
+      end
 
   | BMemo {child = c1; vdom = Memo {f = f1; arg = a1; key = _}; _}, Memo {f = f2; arg = a2; key = _} ->
       (* Is this safe !? *)
@@ -423,9 +476,9 @@ let rec sync : type old_msg msg. ctx -> Element.t -> bool ref -> Element.t ref -
       BCustom {vdom; elt}
 
   | BFragment {vdom = Fragment e1; children; _}, Fragment e2 when e1.key = e2.key ->
-    let children = sync_children ctx parent prev_move next children e2.children in
-    let doms = List.concat_map get_doms children in
-    BFragment {vdom; doms; children }
+      let children = sync_children ctx parent prev_move next children e2.children in
+      let doms = List.concat_map get_doms children in
+      BFragment {vdom; doms; children }
 
   | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns && e1.key = e2.key ->
       let children = sync_children ctx dom (ref false) (ref Element.null) children e2.children in
@@ -433,128 +486,110 @@ let rec sync : type old_msg msg. ctx -> Element.t -> bool ref -> Element.t ref -
       sync_attributes dom e1.attributes e2.attributes;
       BElement {vdom; dom; children}
 
-  | _ ->
-      let x = blit ~parent ctx vdom in
-      let rec loop l1 l2 =
-        match l1, l2 with
-        | h1::t1, h2::t2 ->
-          replace_child parent h1 h2;
-          loop t1 t2
-        | [], l ->
-          List.iter (remove_child parent) l
-        | l, [] ->
-          List.iter (fun c -> insert_before parent c !next) l
-      in
-      let loop l1 l2 =
-        Printf.printf "%d, %d\n%!" (List.length l1) (List.length l2);
-        loop l1 l2
-      in
-      loop (get_doms x) (get_doms old);
-      dispose old;
-      x
+  | _ -> fallback ()
 
-and sync_children : type old_msg msg. ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl list -> msg vdom list -> msg ctrl list =
-    fun ctx dom prev_move next old_children new_children ->
+and sync_children : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl list -> msg vdom list -> msg ctrl list =
+  fun ctx dom prev_move next old_children new_children ->
 
-      (* TODO:
-         - add a fast-path to deal with prefixes and suffixes of old/new children with identical
-           keys, avoiding a lot of allocations.
-         - use a JS object (map) instead of an OCaml Hashtbl?
-      *)
+  (* TODO:
+     - add a fast-path to deal with prefixes and suffixes of old/new children with identical
+       keys, avoiding a lot of allocations.
+     - use a JS object (map) instead of an OCaml Hashtbl?
+  *)
 
-      (* synchronize children *)
+  (* synchronize children *)
 
-      let old_children = Array.of_list old_children in
-      let new_children = Array.of_list new_children in
+  let old_children = Array.of_list old_children in
+  let new_children = Array.of_list new_children in
 
-      (* for each key, get a list of indices in old_children *)
-      let by_key = Hashtbl.create 8 in
-      for i = Array.length old_children - 1 downto 0 do
-        let k = key_of_vdom (get_vdom old_children.(i)) in
-        Hashtbl.add by_key k i
-        (* early elements are inserted last: found first! *)
-      done;
+  (* for each key, get a list of indices in old_children *)
+  let by_key = Hashtbl.create 8 in
+  for i = Array.length old_children - 1 downto 0 do
+    let k = key_of_vdom (get_vdom old_children.(i)) in
+    Hashtbl.add by_key k i
+    (* early elements are inserted last: found first! *)
+  done;
 
-      (* build an array telling us, for each position in the "new" sequence,
-         where to pick it from the "old" sequence. *)
-      let indices = Array.make (Array.length new_children) (-1) in
-      for i = 0 to Array.length indices - 1 do
-        let k = key_of_vdom new_children.(i) in
-        match Hashtbl.find by_key k with
-        | exception Not_found -> () (* keep (-1) == need to build from scratch *)
-        | idx ->
-            indices.(i) <- idx;
-            Hashtbl.remove by_key k;
-      done;
+  (* build an array telling us, for each position in the "new" sequence,
+     where to pick it from the "old" sequence. *)
+  let indices = Array.make (Array.length new_children) (-1) in
+  for i = 0 to Array.length indices - 1 do
+    let k = key_of_vdom new_children.(i) in
+    match Hashtbl.find by_key k with
+    | exception Not_found -> () (* keep (-1) == need to build from scratch *)
+    | idx ->
+        indices.(i) <- idx;
+        Hashtbl.remove by_key k;
+  done;
 
-      Hashtbl.iter
-        (fun _ i ->
-           if debug then Printf.printf "remove %i\n%!" i;
-           let to_remove = old_children.(i) in
-           List.iter (remove_child dom) (get_doms to_remove);
-           dispose to_remove
-        )
-        by_key;
+  Hashtbl.iter
+    (fun _ i ->
+       if debug then Printf.printf "remove %i\n%!" i;
+       let to_remove = old_children.(i) in
+       List.iter (remove_child dom) (get_doms to_remove);
+       dispose to_remove
+    )
+    by_key;
 
-      (* produce the new sequence, from right-to-left, creating and picking+syncinc nodes *)
-      let ctrls = ref [] in
-      for i = Array.length new_children - 1 downto 0 do
-        let idx = indices.(i) in
-        if debug then Printf.printf "old = %i; new = %i: " idx i;
+  (* produce the new sequence, from right-to-left, creating and picking+syncinc nodes *)
+  let ctrls = ref [] in
+  for i = Array.length new_children - 1 downto 0 do
+    let idx = indices.(i) in
+    if debug then Printf.printf "old = %i; new = %i: " idx i;
 
-        let c =
-          if idx < 0 then begin
-            (* create *)
-            if debug then Printf.printf "create\n%!";
-            blit ~parent:dom ctx new_children.(i)
-          end
-          else begin
-            if debug then Printf.printf "sync&move\n%!";
-            (* note: the sync could lead to a DOM replace,
-               following by a move below; in that case,
-               one should just delete old + insert new *)
-            sync ctx dom prev_move next old_children.(idx) new_children.(i)
-          end
-        in
-        (* when next == null, insert at the end *)
+    let c =
+      if idx < 0 then begin
+        (* create *)
+        if debug then Printf.printf "create\n%!";
+        blit ~parent:dom ctx new_children.(i)
+      end
+      else begin
+        if debug then Printf.printf "sync&move\n%!";
+        (* note: the sync could lead to a DOM replace,
+           following by a move below; in that case,
+           one should just delete old + insert new *)
+        sync ctx dom prev_move next old_children.(idx) new_children.(i)
+      end
+    in
+    (* when next == null, insert at the end *)
 
-        (* We try to avoid useless moves as much as possible, not only for performance reason,
-           but also because it causes the loss of focus on input fields.
+    (* We try to avoid useless moves as much as possible, not only for performance reason,
+       but also because it causes the loss of focus on input fields.
 
-           See: https://github.com/google/incremental-dom/issues/237
+       See: https://github.com/google/incremental-dom/issues/237
 
-           Better solutions:
-           - Restore the focus after the entire synchronization (React seems to do that).
-           - Never move a focused widget or one of its ancestors (require a less regular
-             algorithm to apply the desired permutation).
-        *)
-        let doms = get_doms c in
-        let rec last = function
-          | [] -> None
-          | [ c_dom ] -> Some c_dom
-          | _ :: tl -> last tl
-        in
-        match last doms with
-        | None -> ()
-        | Some right_most ->
-          begin
-        let move =
-          idx < 0 ||
-          ((if i = Array.length new_children - 1 then idx <> Array.length old_children - 1
-            else !prev_move || indices.(i + 1) <> idx + 1)
-           && Element.next_sibling right_most != !next)(* could avoid reading from the DOM... *)
-        in
-        if move then begin
-          if debug then Printf.printf "really move\n%!";
-          List.iter (fun c_dom ->
-            insert_before dom c_dom !next) doms;
+       Better solutions:
+       - Restore the focus after the entire synchronization (React seems to do that).
+       - Never move a focused widget or one of its ancestors (require a less regular
+         algorithm to apply the desired permutation).
+    *)
+    let doms = get_doms c in
+    let rec last = function
+      | [] -> None
+      | [ c_dom ] -> Some c_dom
+      | _ :: tl -> last tl
+    in
+    match last doms with
+    | None -> ()
+    | Some right_most ->
+        begin
+          let move =
+            idx < 0 ||
+            ((if i = Array.length new_children - 1 then idx <> Array.length old_children - 1
+              else !prev_move || indices.(i + 1) <> idx + 1)
+             && Element.next_sibling right_most != !next)(* could avoid reading from the DOM... *)
+          in
+          if move then begin
+            if debug then Printf.printf "really move\n%!";
+            List.iter (fun c_dom ->
+                insert_before dom c_dom !next) doms;
+          end;
+          prev_move := move;
+          next := List.hd doms;
         end;
-        prev_move := move;
-        next := List.hd doms;
-      end;
         ctrls := c :: !ctrls
-      done;
-      !ctrls
+  done;
+  !ctrls
 
 
 let sync ctx parent old vdom =
@@ -563,38 +598,39 @@ let sync ctx parent old vdom =
     Printf.printf "Error during vdom sync: %s\n%!" (Printexc.to_string exn);
     raise exn
 
-type 'msg find =
+type find =
   | NotFound
-  | Found: {mapper: ('inner_msg -> 'msg); inner: 'inner_msg ctrl; parent: 'msg find} -> 'msg find
+  | Found: {process: 'msg -> unit; mapper: ('inner_msg -> 'msg); inner: 'inner_msg ctrl; parent: find} -> find
 
-let rec found: type inner_msg msg. (inner_msg -> msg) -> msg find -> Element.t -> inner_msg ctrl -> msg find =
-  fun (type inner_msg msg) (mapper : inner_msg -> msg) parent dom -> function
-  | BElement _ | BText _ | BCustom _ as inner -> Found {mapper; inner; parent}
-  | BFragment {children; _} ->
-    begin match List.find (fun c -> List.memq dom (get_doms c)) children with
-    | exception Not_found -> assert false
-    | c -> (found mapper parent dom c : msg find)
-    end
-  | BMap {f; child; _} -> found (fun x -> mapper (f x)) parent dom child
-  | BMemo {child; _} -> found mapper parent dom child
+let rec found: type inner_msg msg. (msg -> unit) -> (inner_msg -> msg) -> find -> Element.t -> inner_msg ctrl -> find =
+  fun (type inner_msg msg) (process: msg -> unit) (mapper : inner_msg -> msg) parent dom -> function
+    | BElement _ | BText _ | BCustom _ as inner -> Found {process; mapper; inner; parent}
+    | BFragment {children; _} ->
+        begin match List.find (fun c -> List.memq dom (get_doms c)) children with
+        | exception Not_found -> assert false
+        | c -> (found process mapper parent dom c : find)
+        end
+    | BComponent {child; process; _} -> found process Fun.id parent dom child
+    | BMap {f; child; _} -> found process (fun x -> mapper (f x)) parent dom child
+    | BMemo {child; _} -> found process mapper parent dom child
 
 (* Find a ctrl associated to a DOM element.
    Normalize by traversing Map node, and also return the composition of all such mappers
    from the root to the ctrl. *)
 
-let rec vdom_of_dom: type msg. msg ctrl -> Element.t -> msg find = fun root dom ->
+let rec vdom_of_dom: ('msg -> unit) -> 'msg ctrl -> Element.t -> find = fun process root dom ->
   (* hack to check dom == null?   Should move that to Ojs. *)
   match Ojs.option_of_js Element.t_of_js (Element.t_to_js dom) with
   | None -> NotFound
   | Some dom when List.memq dom (get_doms root) ->
-      found Fun.id NotFound dom root
+      found process Fun.id NotFound dom root
   | Some dom ->
-      begin match vdom_of_dom root (Element.parent_node dom) with
+      begin match vdom_of_dom process root (Element.parent_node dom) with
       | NotFound -> NotFound
-      | Found {mapper; inner = BElement {children; _}; _} as parent ->
+      | Found {process; mapper; inner = BElement {children; _}; _} as parent ->
           begin match List.find (fun c -> List.memq dom (get_doms c)) children with
           | exception Not_found -> assert false
-          | c -> found mapper parent dom c
+          | c -> found process mapper parent dom c
           end
       | Found {mapper = _; inner = BCustom _; _} ->
           NotFound
@@ -664,11 +700,15 @@ let run (type msg model) ?(env = empty) ?container
   in
 
   let process_custom_fwd = ref (fun _ _ -> assert false) in
+  let process_fwd = ref (fun _ -> assert false) in
+  let run_cmd process element = Cmd.run after_redraw (env.cmds @ (!global).cmds) process element  in
   let ctx =
     {
       process_custom = (fun elt evt -> !process_custom_fwd elt evt);
       custom_handlers = env.customs;
       after_redraw;
+      process = (fun msg -> !process_fwd msg);
+      run_cmd;
     }
   in
   let view model =
@@ -713,7 +753,7 @@ let run (type msg model) ?(env = empty) ?container
   and run_cmd (parent : Js_browser.Element.t) cmd =
     Cmd.run after_redraw (env.cmds @ (!global).cmds) process parent cmd
   in
-
+  process_fwd := process;
   List.iter (Element.append_child container) (get_doms x);
 
   let prev_value_attribute = "data-ocaml-vdom-prev-value" in
@@ -772,6 +812,7 @@ let run (type msg model) ?(env = empty) ?container
       in
       let rec propagate = function
         | Found {
+            process;
             mapper;
             inner = ( BElement {vdom = Element {attributes; _}; dom; _}
                     | BCustom  {vdom = Custom  {attributes; _}; elt = {dom; _}; _} );
@@ -789,19 +830,19 @@ let run (type msg model) ?(env = empty) ?container
       in
 
       Option.iter (fun root ->
-          propagate (vdom_of_dom root tgt);
+          propagate (vdom_of_dom process root tgt);
         ) !current;
 
       if ty = "input" || ty = "blur" then
         let f () =
           Option.iter
             (fun root ->
-               match vdom_of_dom root tgt with
+               match vdom_of_dom process root tgt with
                (* note: the new vdom can be different after processing
                   the event above *)
                (* !! This is probably broken now that we delay updating the vdom
                      with request_animation_frame !! *)
-               | Found {mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+               | Found {process = _ ; mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
                    List.iter
                      (function
                        | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
@@ -820,7 +861,7 @@ let run (type msg model) ?(env = empty) ?container
   let process_custom tgt event =
     Option.iter
       (fun root ->
-         let process mapper attributes =
+         let apply process mapper attributes =
            let select_handler = function
              | Handler h -> event.ev h
              | _ -> None
@@ -828,11 +869,11 @@ let run (type msg model) ?(env = empty) ?container
            let msgs = List.filter_map select_handler attributes in
            List.iter (fun msg -> process (mapper msg)) msgs
          in
-         begin match vdom_of_dom root tgt with
-         | Found {mapper; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
-             process mapper attributes
-         | Found {mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
-             process mapper attributes
+         begin match vdom_of_dom process root tgt with
+         | Found {process; mapper; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+             apply process mapper attributes
+         | Found {process; mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
+             apply process mapper attributes
          | _ ->
              ()
          end
