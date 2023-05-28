@@ -521,6 +521,7 @@ module Element : sig
   val dispatch_event: t (* T *) -> Event.t -> bool [@@js.call]
   val style: t (* T *) -> Style.t [@@js.get]
   val inner_HTML: t -> string [@@js.get]
+  val outer_HTML: t -> string [@@js.get]
   val set_inner_HTML: t -> string -> unit [@@js.set]
   val set_text_content: t -> string -> unit [@@js.set]
   val set_class_name: t -> string -> unit [@@js.set]

@@ -131,6 +131,11 @@ type +'msg vdom =
         key: string;
         txt: string;
       }
+  | Fragment of
+    {
+      key: string;
+      children: 'msg vdom list;
+    }
   | Element of
       {
         key: string;
@@ -159,6 +164,7 @@ type +'msg vdom =
       }
 
 let text ?(key ="_txt") txt = Text {key; txt}
+let fragment ?(key ="_fragment") children = Fragment {key; children}
 
 type ('msg, 'res) elt_gen =
   ?key:string ->
@@ -301,6 +307,8 @@ let to_html vdom =
           Buffer.add_string b tag;
           Buffer.add_char b '>'
         end
+    | Fragment {key=_; children} ->
+        List.iter aux children
     | Map {key=_; f=_; child} ->
         aux child
     | Memo {key=_; f; arg} ->

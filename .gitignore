@@ -1,2 +1,4 @@
 _build
 .merlin
+examples/components/dune
+examples/components/main.js

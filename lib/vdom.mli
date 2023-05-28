@@ -215,6 +215,11 @@ type +'msg vdom =
         key: string;
         txt: string;
       }
+  | Fragment of
+      {
+        key: string;
+        children: 'msg vdom list;
+      }
   | Element of
       {
         key: string;
@@ -254,6 +259,9 @@ val svg_elt: string -> ('msg, 'msg vdom list -> 'msg vdom) elt_gen
 
 val text: ?key:string -> string -> 'msg vdom
 (** A text node. *)
+
+val fragment: ?key:string -> 'msg vdom list -> 'msg vdom
+(** A fragment node (not appearing in the dom). *)
 
 val map_attr: ('msg attribute list -> 'msg attribute list) -> 'msg vdom -> 'msg vdom
 (** Map attributes of a vdom element *)
