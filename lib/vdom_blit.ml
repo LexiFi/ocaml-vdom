@@ -90,7 +90,7 @@ type 'msg ctrl =
   | BFragment of {vdom: 'msg vdom; doms: Element.t list; children: 'msg ctrl list}
   | BElement of {vdom: 'msg vdom; dom: Element.t; children: 'msg ctrl list}
   | BComponent:
-      {vdom: 'msg vdom; doms: Element.t list; id: 'model component_id;
+      {vdom: 'msg vdom; doms: Element.t list; model_type: 'model registered_type;
        state: 'model ref;
        child: 'priv ctrl;
        process: 'priv -> unit;
@@ -261,11 +261,11 @@ let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
       let doms = List.concat_map get_doms children in
       BFragment { vdom; doms; children }
 
-  | Component {key = _; id; init; view; update } ->
+  | Component {key = _; model_type; init; view; update } ->
       let state = ref init in
       let process = process_component ctx parent state update in
       let child = blit ~parent { ctx with process } (view init) in
-      BComponent { vdom; id; state; process; doms = get_doms child; child }
+      BComponent { vdom; model_type; state; process; doms = get_doms child; child }
 
   | Map {f; child; key = _} ->
       let process msg = ctx.process (f msg) in
@@ -453,14 +453,14 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
       let child = sync { ctx with process } parent prev_move next c1 c2 in
       BMap {vdom; doms = get_doms child; child; f}
 
-  | BComponent {id = id1; state; child = c1; _}, Component { id = id2; view; update; _ } ->
-      begin match same_component id1 id2 with
+  | BComponent {model_type = t1; state; child = c1; _}, Component { model_type = t2; view; update; _ } ->
+      begin match same_type t1 t2 with
       | None -> fallback ()
       | Some Refl ->
           let process = process_component ctx parent state update in
           let c2 = view !state in
           let child = sync { ctx with process } parent prev_move next c1 c2 in
-          BComponent {id = id1; vdom; doms = get_doms child; state; process; child}
+          BComponent {model_type = t1; vdom; doms = get_doms child; state; process; child}
       end
 
   | BMemo {child = c1; vdom = Memo {f = f1; arg = a1; key = _}; _}, Memo {f = f2; arg = a2; key = _} ->

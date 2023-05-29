@@ -125,41 +125,41 @@ let add_class x attrs =
   else
     class_ x :: attrs
 
-type 'a component_type = ..
+type 'a type_witness = ..
 
-type 'a component_id = {
+type 'a registered_type = {
   id: int;
-  component_type: 'a component_type
+  witness: 'a type_witness
 }
 
 type (_, _) eq = Refl: ('a, 'a) eq
 
-type registered_component_id =
-  { cmp: 'a 'b.'a component_type -> 'b component_type -> ('a, 'b) eq option }
+type type_comparator =
+  { cmp: 'a 'b.'a type_witness -> 'b type_witness -> ('a, 'b) eq option }
 
-let registered_component_next_id = ref 0
-let registered_component_ids = Hashtbl.create 3
+let registered_type_next_id = ref 0
+let registered_types = Hashtbl.create 3
 
-let same_component (type a b) (a : a component_id) (b : b component_id) : (a, b) eq option =
-  match Hashtbl.find_opt registered_component_ids a.id with
-  | Some { cmp } -> cmp a.component_type b.component_type
+let same_type (type a b) (a : a registered_type) (b : b registered_type) : (a, b) eq option =
+  match Hashtbl.find_opt registered_types a.id with
+  | Some { cmp } -> cmp a.witness b.witness
   | None -> None
 
-let register_component_id (type t) () : t component_id =
-  let id = !registered_component_next_id in
-  incr registered_component_next_id;
+let register_type (type t) () : t registered_type =
+  let id = !registered_type_next_id in
+  incr registered_type_next_id;
   let module M = struct
-    type _ component_type += Witness: t component_type
+    type _ type_witness += Witness: t type_witness
   end
   in
-  let cmp: 'a 'b.'a component_type -> 'b component_type -> ('a, 'b) eq option =
-    fun (type a b) (a: a component_type) (b : b component_type) : (a, b) eq option ->
+  let cmp: 'a 'b.'a type_witness -> 'b type_witness -> ('a, 'b) eq option =
+    fun (type a b) (a: a type_witness) (b : b type_witness) : (a, b) eq option ->
       match a, b with
       | M.Witness, M.Witness -> Some Refl
       | _ -> None
   in
-  Hashtbl.add registered_component_ids id { cmp };
-  { id ; component_type = M.Witness }
+  Hashtbl.add registered_types id { cmp };
+  { id ; witness = M.Witness }
 
 
 type +'msg vdom =
@@ -193,9 +193,10 @@ type +'msg vdom =
         f: ('a -> 'msg vdom);
         arg: 'a;
       } -> 'msg vdom
+
   | Component:
       {
-        id: 'model component_id;
+        model_type: 'model registered_type;
         key: string;
         init: 'model;
         update: 'model -> 'priv -> 'model * 'priv Cmd.t * 'msg Cmd.t;
@@ -370,14 +371,14 @@ type 'model component_factory =
       ('model -> 'priv vdom) -> 'pub vdom }
 
 let component_factory () =
-  let id = register_component_id () in
+  let model_type = register_type () in
   let build ?key ~init ~update view =
     let key =
       match key with
       | Some k -> k
-      | None -> "fragment"^(string_of_int id.id)
+      | None -> "fragment"^(string_of_int model_type.id)
     in
-    Component {key; id; init; update; view}
+    Component {key; model_type; init; update; view}
   in
   { build }
 

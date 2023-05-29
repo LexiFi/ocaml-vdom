@@ -209,9 +209,9 @@ val custom_event: Custom.event -> event
 (** {2 VDOM} *)
 
 type (_, _) eq = Refl: ('a, 'a) eq
-type 'a component_id
-val register_component_id: unit -> 'a component_id
-val same_component: 'a component_id -> 'b component_id -> ('a, 'b) eq option
+type 'a registered_type
+val register_type: unit -> 'a registered_type
+val same_type: 'a registered_type -> 'b registered_type -> ('a, 'b) eq option
 
 type +'msg vdom =
   | Text of
@@ -246,7 +246,7 @@ type +'msg vdom =
       } -> 'msg vdom
   | Component:
       {
-        id: 'model component_id;
+        model_type: 'model registered_type;
         key: string;
         init: 'model;
         update: 'model -> 'priv -> 'model * 'priv Cmd.t * 'msg Cmd.t;
