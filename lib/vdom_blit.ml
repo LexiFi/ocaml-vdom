@@ -248,7 +248,8 @@ let rec process_component ctx parent state update msg =
   let model, priv, pub = update !state msg in
   state := model;
   ctx.run_cmd (process_component ctx parent state update) parent priv;
-  ctx.run_cmd ctx.process parent pub
+  ctx.run_cmd ctx.process parent pub;
+  ctx.redraw ()
 
 let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
   fun ~parent ctx vdom ->
@@ -701,11 +702,13 @@ let run (type msg model) ?(env = empty) ?container
 
   let process_custom_fwd = ref (fun _ _ -> assert false) in
   let process_fwd = ref (fun _ -> assert false) in
+  let redraw_fwd = ref (fun () -> assert false) in
   let run_cmd process element = Cmd.run after_redraw (env.cmds @ (!global).cmds) process element  in
   let ctx =
     {
       process_custom = (fun elt evt -> !process_custom_fwd elt evt);
       custom_handlers = env.customs;
+      redraw = (fun () -> !redraw_fwd ());
       after_redraw;
       process = (fun msg -> !process_fwd msg);
       run_cmd;
@@ -737,7 +740,12 @@ let run (type msg model) ?(env = empty) ?container
         current := Some x;
         flush ()
   in
-
+  redraw_fwd := (fun () ->
+    if not !pending_redraw then begin
+      pending_redraw := true;
+      Window.request_animation_frame window redraw
+    end
+  );
   let rec process msg =
     try
       let (new_model : model), (cmd : msg Vdom.Cmd.t) = update !model msg in
