@@ -162,6 +162,15 @@ let register_type (type t) () : t registered_type =
   { id ; witness = M.Witness }
 
 
+type 'a context = {
+  context_type: 'a registered_type;
+  default_value: 'a;
+}
+let context_type {context_type; _} = context_type
+let create_context default_value = { context_type = register_type (); default_value }
+let context_id { context_type; _ } = context_type.id
+let context_default_value { default_value; _ } = default_value
+
 type +'msg vdom =
   | Text of
       {
@@ -193,6 +202,21 @@ type +'msg vdom =
         f: ('a -> 'msg vdom);
         arg: 'a;
       } -> 'msg vdom
+
+  | GetContext:
+     {
+      key: string;
+      context: 'a context;
+      child: 'a -> 'msg vdom;
+     } -> 'msg vdom
+
+  | SetContext:
+     {
+      key: string;
+      context: 'a context;
+      value: 'a;
+      child: 'msg vdom;
+     } -> 'msg vdom
 
   | Component:
       {
@@ -359,7 +383,7 @@ let to_html vdom =
         aux child
     | Memo {key=_; f; arg} ->
         aux (f arg)
-    | Component _
+    | Component _ | GetContext _ | SetContext _
     | Custom _ -> ()
   in
   aux vdom;
@@ -383,3 +407,19 @@ let component_factory () =
   { build }
 
 let ret ?(priv = []) ?(pub = []) model = model, Cmd.batch priv, Cmd.batch pub
+
+let set_context ?key context value child =
+  let key =
+    match key with
+    | None -> "set-context-"^(string_of_int (context_id context))
+    | Some key -> key
+  in
+  SetContext {key; context; child; value}
+
+let get_context ?key context f =
+  let key =
+    match key with
+    | None -> "get-context-"^(string_of_int (context_id context))
+    | Some key -> key
+  in
+  GetContext {key; context; child = f}

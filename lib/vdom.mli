@@ -213,6 +213,13 @@ type 'a registered_type
 val register_type: unit -> 'a registered_type
 val same_type: 'a registered_type -> 'b registered_type -> ('a, 'b) eq option
 
+type 'a context
+
+val create_context: 'a -> 'a context
+val context_id: 'a context -> int
+val context_type: 'a context -> 'a registered_type
+val context_default_value: 'a context -> 'a
+
 type +'msg vdom =
   | Text of
       {
@@ -243,6 +250,19 @@ type +'msg vdom =
         key: string;
         f: ('a -> 'msg vdom);
         arg: 'a;
+      } -> 'msg vdom
+    | GetContext:
+      {
+       key: string;
+       context: 'a context;
+       child: 'a -> 'msg vdom;
+      } -> 'msg vdom
+   | SetContext:
+      {
+       key: string;
+       context: 'a context;
+       value: 'a;
+       child: 'msg vdom;
       } -> 'msg vdom
   | Component:
       {
@@ -345,3 +365,6 @@ type 'model component_factory =
 val component_factory: unit -> 'model component_factory
 
 val ret: ?priv:'priv Cmd.t list -> ?pub:'pub Cmd.t list -> 'model -> 'model * 'priv Cmd.t * 'pub Cmd.t
+
+val set_context: ?key:string -> 'a context -> 'a -> 'b vdom -> 'b vdom
+val get_context: ?key:string -> 'a context -> ('a -> 'b vdom) -> 'b vdom

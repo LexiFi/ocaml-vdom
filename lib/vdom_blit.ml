@@ -89,6 +89,8 @@ type 'msg ctrl =
   | BText of {vdom: 'msg vdom; dom: Element.t}
   | BFragment of {vdom: 'msg vdom; doms: Element.t list; children: 'msg ctrl list}
   | BElement of {vdom: 'msg vdom; dom: Element.t; children: 'msg ctrl list}
+  | BGetContext of { vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl }
+  | BSetContext of { vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl }
   | BComponent:
       {vdom: 'msg vdom; doms: Element.t list; model_type: 'model registered_type;
        state: 'model ref;
@@ -105,6 +107,8 @@ let get_doms = function
   | BElement x -> [x.dom]
   | BMap x -> x.doms
   | BComponent x -> x.doms
+  | BSetContext x -> x.doms
+  | BGetContext x -> x.doms
   | BMemo x -> x.doms
   | BCustom x -> [x.elt.dom]
 
@@ -116,6 +120,8 @@ let get_vdom = function
   | BMemo x -> x.vdom
   | BCustom x -> x.vdom
   | BComponent x -> x.vdom
+  | BGetContext x -> x.vdom
+  | BSetContext x -> x.vdom
 
 let key_of_vdom = function
   | Text {key; _}
@@ -124,7 +130,9 @@ let key_of_vdom = function
   | Map {key; _}
   | Memo {key; _}
   | Component {key; _}
-  | Custom {key; _} ->
+  | Custom {key; _}
+  | GetContext {key; _}
+  | SetContext {key; _} ->
       key
 
 let eval_prop = function
@@ -235,14 +243,34 @@ let global = ref empty
 
 let register e = global := merge [e; !global]
 
+module IntMap = Map.Make(Int)
+type context_value =
+  | Context_value: ('a context * 'a) -> context_value
+
 type 'msg ctx =
   {
     process_custom: (Element.t -> event -> unit);
     custom_handlers: Custom.handler list;
+    redraw: unit -> unit;
     after_redraw: ((unit -> unit) -> unit);
     run_cmd: 'msg. ('msg -> unit) -> Element.t -> 'msg Vdom.Cmd.t -> unit;
     process: 'msg -> unit;
+    contexts: context_value IntMap.t;
   }
+
+let peek_context (type t) (ctx : _ ctx) (context : t context) : t =
+  match IntMap.find_opt (context_id context) ctx.contexts with
+  | Some (Context_value (context', value)) ->
+    begin match same_type (context_type context) (context_type context') with
+    | Some Refl -> value
+    | None -> assert false
+    end
+  | None -> context_default_value context
+
+let push_context ctx context value =
+  let id = context_id context in
+  let contexts = IntMap.add id (Context_value (context, value)) ctx.contexts in
+  { ctx with contexts }
 
 let rec process_component ctx parent state update msg =
   let model, priv, pub = update !state msg in
@@ -267,6 +295,16 @@ let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
       let process = process_component ctx parent state update in
       let child = blit ~parent { ctx with process } (view init) in
       BComponent { vdom; model_type; state; process; doms = get_doms child; child }
+
+  | GetContext {context; child; key = _} ->
+    let arg = peek_context ctx context in
+    let child = blit ~parent ctx (child arg) in
+    BGetContext {vdom; doms = get_doms child; child }
+
+  | SetContext {context; child; value; key = _} ->
+    let ctx = push_context ctx context value in
+    let child = blit ~parent ctx child in
+    BSetContext {vdom; doms = get_doms child; child }
 
   | Map {f; child; key = _} ->
       let process msg = ctx.process (f msg) in
@@ -396,6 +434,8 @@ let rec dispose : type msg. msg ctrl -> unit = fun ctrl ->
   | BElement {children; _} -> List.iter dispose children
   | BMap {child; _} -> dispose child
   | BComponent {child; _} -> dispose child
+  | BSetContext {child; _}
+  | BGetContext {child; _}
   | BMemo {child; _} -> dispose child
 
 let print_element node =
@@ -433,10 +473,6 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
       | l, [] ->
           List.iter (fun c -> insert_before parent c !next) l
     in
-    let loop l1 l2 =
-      Printf.printf "%d, %d\n%!" (List.length l1) (List.length l2);
-      loop l1 l2
-    in
     loop (get_doms x) (get_doms old);
     dispose old;
     x
@@ -463,6 +499,16 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
           let child = sync { ctx with process } parent prev_move next c1 c2 in
           BComponent {model_type = t1; vdom; doms = get_doms child; state; process; child}
       end
+
+  | BGetContext {child = c1; _}, GetContext {context; child = c2; _} ->
+    let arg = peek_context ctx context in
+    let child = sync ctx parent prev_move next c1 (c2 arg) in
+    BGetContext {vdom; doms = get_doms child; child}
+
+  | BSetContext {child = c1; _}, SetContext {context; value; child = c2; _} ->
+    let ctx = push_context ctx context value in
+    let child = sync ctx parent prev_move next c1 c2 in
+    BSetContext {vdom; doms = get_doms child; child}
 
   | BMemo {child = c1; vdom = Memo {f = f1; arg = a1; key = _}; _}, Memo {f = f2; arg = a2; key = _} ->
       (* Is this safe !? *)
@@ -613,7 +659,9 @@ let rec found: type inner_msg msg. (msg -> unit) -> (inner_msg -> msg) -> find -
         end
     | BComponent {child; process; _} -> found process Fun.id parent dom child
     | BMap {f; child; _} -> found process (fun x -> mapper (f x)) parent dom child
-    | BMemo {child; _} -> found process mapper parent dom child
+    | BMemo {child; _}
+    | BSetContext {child; _}
+    | BGetContext {child; _}  -> found process mapper parent dom child
 
 (* Find a ctrl associated to a DOM element.
    Normalize by traversing Map node, and also return the composition of all such mappers
@@ -712,6 +760,7 @@ let run (type msg model) ?(env = empty) ?container
       after_redraw;
       process = (fun msg -> !process_fwd msg);
       run_cmd;
+      contexts = IntMap.empty
     }
   in
   let view model =
