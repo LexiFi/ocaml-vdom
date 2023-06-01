@@ -7,6 +7,38 @@ open Vdom
 
 let debug = false
 
+module Sub = struct
+  type 'msg ctx =
+    {
+      parent: Js_browser.Element.t;
+      send_msg: 'msg -> unit;
+    }
+
+  let parent {parent; _} = parent
+  let send_msg {send_msg; _} = send_msg
+
+  type t =
+    {
+      sync: 'a. 'a Sub.t -> bool;
+      dispose: unit -> unit;
+    }
+
+  type handler = {f: 'a. 'a ctx -> 'a Vdom.Sub.t -> t option}
+
+  let install: type msg. handler list -> (msg -> unit) -> Js_browser.Element.t -> msg Sub.t -> t =
+    fun handlers send_msg parent x ->
+      let ctx = {send_msg; parent} in
+      let rec loop = function
+        | [] -> Printf.ksprintf failwith "No subscription handler found! (%s)"
+                  (Obj.Extension_constructor.name (Obj.Extension_constructor.of_val x))
+        | {f} :: tl ->
+            match f ctx x with
+            | None -> loop tl
+            | Some r -> r
+      in
+      loop handlers
+end
+
 module Cmd = struct
   type 'msg ctx =
     {
@@ -97,11 +129,13 @@ type 'msg ctrl =
        child: 'priv ctrl;
        process: 'priv -> unit;
       } -> 'msg ctrl
+  | BSubscription: {vdom: 'msg vdom; sub: Sub.t } -> 'msg ctrl
   | BMap: {vdom: 'msg vdom; doms: Element.t list; f: ('submsg -> 'msg); child: 'submsg ctrl} -> 'msg ctrl
   | BMemo: {vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl} -> 'msg ctrl
   | BCustom of {vdom: 'msg vdom; elt: Custom.t}
 
 let get_doms = function
+  | BSubscription _ -> []
   | BText x -> [x.dom]
   | BFragment x -> x.doms
   | BElement x -> [x.dom]
@@ -122,6 +156,7 @@ let get_vdom = function
   | BComponent x -> x.vdom
   | BGetContext x -> x.vdom
   | BSetContext x -> x.vdom
+  | BSubscription x -> x.vdom
 
 let key_of_vdom = function
   | Text {key; _}
@@ -132,6 +167,7 @@ let key_of_vdom = function
   | Component {key; _}
   | Custom {key; _}
   | GetContext {key; _}
+  | Subscription {key; _}
   | SetContext {key; _} ->
       key
 
@@ -226,15 +262,18 @@ let apply_attributes dom attributes =
 
 type env =
   {
+    subs: Sub.handler list;
     cmds: Cmd.handler list;
     customs: Custom.handler list;
   }
 
-let empty = {cmds = []; customs = []}
+let empty = {cmds = []; subs = []; customs = []}
+let sub h = {empty with subs = [h]}
 let cmd h = {empty with cmds = [h]}
 let custom h = {empty with customs = [h]}
 let merge envs =
   {
+    subs = List.concat (List.map (fun e -> e.subs) envs);
     cmds = List.concat (List.map (fun e -> e.cmds) envs);
     customs = List.concat (List.map (fun e -> e.customs) envs);
   }
@@ -254,6 +293,7 @@ type 'msg ctx =
     redraw: unit -> unit;
     after_redraw: ((unit -> unit) -> unit);
     run_cmd: 'msg. ('msg -> unit) -> Element.t -> 'msg Vdom.Cmd.t -> unit;
+    install_sub:'msg. ('msg -> unit) -> Element.t -> 'msg Vdom.Sub.t -> Sub.t;
     process: 'msg -> unit;
     contexts: context_value IntMap.t;
   }
@@ -336,6 +376,10 @@ let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
       List.iter (fun c -> List.iter (Element.append_child dom) (get_doms c)) children;
       apply_attributes dom attributes;
       BElement {vdom; dom; children}
+
+  | Subscription {key = _ ; sub} ->
+      let sub = ctx.install_sub ctx.process parent sub in
+      BSubscription {vdom; sub}
 
 let blit ~parent ctx vdom =
   try blit ~parent ctx vdom
@@ -430,6 +474,7 @@ let rec dispose : type msg. msg ctrl -> unit = fun ctrl ->
   match ctrl with
   | BText _ -> ()
   | BCustom {elt; _} -> elt.dispose ()
+  | BSubscription {sub; _} -> sub.dispose ()
   | BFragment {children; _}
   | BElement {children; _} -> List.iter dispose children
   | BMap {child; _} -> dispose child
@@ -516,6 +561,12 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
         bmemo vdom (Obj.magic (c1 : old_msg ctrl) : msg ctrl)
       else
         bmemo vdom (sync ctx parent prev_move next c1 (f2 a2))
+
+  | BSubscription {vdom = Subscription{key = key1; _}; sub=sub1; _}, Subscription {key=key2; sub=sub2} when key1 = key2 ->
+      if sub1.sync sub2 then
+        BSubscription {vdom; sub = sub1}
+      else
+        fallback ()
 
   | BCustom {vdom = Custom {key=key1; elt=arg1; attributes=a1}; elt}, Custom {key=key2; elt=arg2; attributes=a2}
     when key1 = key2 && (arg1 == arg2 || elt.sync arg2) ->
@@ -661,7 +712,8 @@ let rec found: type inner_msg msg. (msg -> unit) -> (inner_msg -> msg) -> find -
     | BMap {f; child; _} -> found process (fun x -> mapper (f x)) parent dom child
     | BMemo {child; _}
     | BSetContext {child; _}
-    | BGetContext {child; _}  -> found process mapper parent dom child
+    | BGetContext {child; _} -> found process mapper parent dom child
+    | BSubscription _ -> assert false
 
 (* Find a ctrl associated to a DOM element.
    Normalize by traversing Map node, and also return the composition of all such mappers
@@ -751,7 +803,8 @@ let run (type msg model) ?(env = empty) ?container
   let process_custom_fwd = ref (fun _ _ -> assert false) in
   let process_fwd = ref (fun _ -> assert false) in
   let redraw_fwd = ref (fun () -> assert false) in
-  let run_cmd process element = Cmd.run after_redraw (env.cmds @ (!global).cmds) process element  in
+  let run_cmd process element = Cmd.run after_redraw (env.cmds @ !global.cmds) process element  in
+  let install_sub process parent = Sub.install (env.subs @ !global.subs) process parent in
   let ctx =
     {
       process_custom = (fun elt evt -> !process_custom_fwd elt evt);
@@ -760,6 +813,7 @@ let run (type msg model) ?(env = empty) ?container
       after_redraw;
       process = (fun msg -> !process_fwd msg);
       run_cmd;
+      install_sub;
       contexts = IntMap.empty
     }
   in

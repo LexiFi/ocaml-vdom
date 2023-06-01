@@ -3,6 +3,10 @@
 (* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
 
+module Sub = struct
+  type +'msg t = ..
+end
+
 module Cmd = struct
   type +'msg t = ..
 
@@ -204,19 +208,25 @@ type +'msg vdom =
       } -> 'msg vdom
 
   | GetContext:
-     {
-      key: string;
-      context: 'a context;
-      child: 'a -> 'msg vdom;
-     } -> 'msg vdom
+      {
+        key: string;
+        context: 'a context;
+        child: 'a -> 'msg vdom;
+      } -> 'msg vdom
 
   | SetContext:
-     {
-      key: string;
-      context: 'a context;
-      value: 'a;
-      child: 'msg vdom;
-     } -> 'msg vdom
+      {
+        key: string;
+        context: 'a context;
+        value: 'a;
+        child: 'msg vdom;
+      } -> 'msg vdom
+
+  | Subscription:
+      {
+        key: string;
+        sub: 'msg Sub.t;
+      } -> 'msg vdom
 
   | Component:
       {
@@ -383,7 +393,7 @@ let to_html vdom =
         aux child
     | Memo {key=_; f; arg} ->
         aux (f arg)
-    | Component _ | GetContext _ | SetContext _
+    | Component _ | GetContext _ | SetContext _ | Subscription _
     | Custom _ -> ()
   in
   aux vdom;
@@ -423,3 +433,11 @@ let get_context ?key context f =
     | Some key -> key
   in
   GetContext {key; context; child = f}
+
+let subscription ?key sub =
+  let key =
+    match key with
+    | None -> "subscription"
+    | Some key -> key
+  in
+  Subscription {key; sub}

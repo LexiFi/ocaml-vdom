@@ -34,6 +34,10 @@
 
 (** {2 Commands} *)
 
+module Sub: sig
+  type +'msg t = ..
+end
+
 module Cmd: sig
   type +'msg t = ..
 
@@ -264,6 +268,11 @@ type +'msg vdom =
        value: 'a;
        child: 'msg vdom;
       } -> 'msg vdom
+  | Subscription:
+      {
+       key: string;
+       sub: 'msg Sub.t;
+      } -> 'msg vdom
   | Component:
       {
         model_type: 'model registered_type;
@@ -368,3 +377,5 @@ val ret: ?priv:'priv Cmd.t list -> ?pub:'pub Cmd.t list -> 'model -> 'model * 'p
 
 val set_context: ?key:string -> 'a context -> 'a -> 'b vdom -> 'b vdom
 val get_context: ?key:string -> 'a context -> ('a -> 'b vdom) -> 'b vdom
+
+val subscription: ?key:string -> 'msg Sub.t -> 'msg vdom

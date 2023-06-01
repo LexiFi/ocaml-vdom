@@ -6,6 +6,22 @@
 (** {1 Rendering "Virtual applications" to concrete ones} *)
 
 
+module Sub: sig
+  type 'msg ctx
+
+  val parent: _ ctx -> Js_browser.Element.t
+  val send_msg: 'msg ctx -> 'msg -> unit
+
+  type t = {
+    sync: 'a. 'a Vdom.Sub.t -> bool;
+    dispose: unit -> unit;
+  }
+
+  type handler = {f: 'msg. 'msg ctx -> 'msg Vdom.Sub.t -> t option}
+
+end
+
+
 module Cmd: sig
   type 'msg ctx
 
@@ -53,6 +69,7 @@ end
 (** {2 Extension hooks (command and custom element handlers)} *)
 
 type env
+val sub: Sub.handler -> env
 val cmd: Cmd.handler -> env
 val custom: Custom.handler -> env
 val merge: env list -> env
