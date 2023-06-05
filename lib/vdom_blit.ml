@@ -2,6 +2,8 @@
 (* See the attached LICENSE file.                                                                    *)
 (* Copyright (C) 2000-2022 LexiFi                                                                    *)
 
+[@@@ocaml.warning "-a"]
+
 open Js_browser
 open Vdom
 
@@ -17,15 +19,15 @@ module Sub = struct
   let parent {parent; _} = parent
   let send_msg {send_msg; _} = send_msg
 
-  type t =
+  type 'msg t =
     {
-      sync: 'a. 'a Sub.t -> bool;
+      sync: 'a. 'a Vdom.Sub.t -> ('a, 'msg) Vdom.eq option;
       dispose: unit -> unit;
     }
 
-  type handler = {f: 'a. 'a ctx -> 'a Vdom.Sub.t -> t option}
+  type handler = {f: 'a. 'a ctx -> 'a Vdom.Sub.t -> 'a t option}
 
-  let install: type msg. handler list -> (msg -> unit) -> Js_browser.Element.t -> msg Sub.t -> t =
+  let install: type msg. handler list -> (msg -> unit) -> Js_browser.Element.t -> msg Sub.t -> msg t =
     fun handlers send_msg parent x ->
       let ctx = {send_msg; parent} in
       let rec loop = function
@@ -117,22 +119,33 @@ end
 (* Rendering (VDOM -> DOM) *)
 
 
+type reference = unit ref
+
 type 'msg ctrl =
   | BText of {vdom: 'msg vdom; dom: Element.t}
-  | BFragment of {vdom: 'msg vdom; doms: Element.t list; children: 'msg ctrl list}
+  | BFragment of {vdom: 'msg vdom; doms: Element.t list; refs: reference list;  children: 'msg ctrl list}
   | BElement of {vdom: 'msg vdom; dom: Element.t; children: 'msg ctrl list}
-  | BGetContext of { vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl }
-  | BSetContext of { vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl }
+  | BGetContext of { vdom: 'msg vdom; doms: Element.t list; refs: reference list;  child: 'msg ctrl }
+  | BSetContext of { vdom: 'msg vdom; doms: Element.t list; refs: reference list;  child: 'msg ctrl }
   | BComponent:
-      {vdom: 'msg vdom; doms: Element.t list; model_type: 'model registered_type;
+      {vdom: 'msg vdom; doms: Element.t list; refs: reference list;
+       model_type: 'model registered_type;
+       msg_type: 'priv registered_type;
        state: 'model ref;
-       child: 'priv ctrl;
-       process: 'priv -> unit;
+       update: 'model -> 'priv -> 'model * ('priv, 'msg) component_msg Vdom.Cmd.t;
+       child: ('priv, 'msg) component_msg ctrl;
+       ref: reference;
       } -> 'msg ctrl
-  | BSubscription: {vdom: 'msg vdom; sub: Sub.t } -> 'msg ctrl
-  | BMap: {vdom: 'msg vdom; doms: Element.t list; f: ('submsg -> 'msg); child: 'submsg ctrl} -> 'msg ctrl
-  | BMemo: {vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl} -> 'msg ctrl
+  | BSubscription: {
+      vdom: 'msg vdom;
+      sub: 'submsg Sub.t;
+      handler: 'submsg -> 'msg;
+      ref: unit ref
+    } -> 'msg ctrl
+  | BMap: {vdom: 'msg vdom; doms: Element.t list; refs: reference list;  f: ('submsg -> 'msg); child: 'submsg ctrl} -> 'msg ctrl
+  | BMemo: {vdom: 'msg vdom; doms: Element.t list; refs: reference list;  child: 'msg ctrl} -> 'msg ctrl
   | BCustom of {vdom: 'msg vdom; elt: Custom.t}
+
 
 let get_doms = function
   | BSubscription _ -> []
@@ -145,6 +158,16 @@ let get_doms = function
   | BGetContext x -> x.doms
   | BMemo x -> x.doms
   | BCustom x -> [x.elt.dom]
+
+let get_refs = function
+  | BSubscription {ref; _} -> [ref]
+  | BComponent {refs; ref; _} -> ref :: refs
+  | BCustom _ | BText _ | BElement _ -> []
+  | BFragment {refs; _}
+  | BMap {refs; _}
+  | BSetContext {refs; _}
+  | BGetContext {refs; _}
+  | BMemo {refs; _} -> refs
 
 let get_vdom = function
   | BText x -> x.vdom
@@ -193,7 +216,7 @@ let same_prop v1 v2 =
   | _ -> false
 
 let bmemo vdom child =
-  BMemo {vdom; doms = get_doms child; child}
+  BMemo {vdom; doms = get_doms child; refs = get_refs child; child}
 
 let async f =
   ignore (Window.set_timeout window f 0)
@@ -286,19 +309,15 @@ module IntMap = Map.Make(Int)
 type context_value =
   | Context_value: ('a context * 'a) -> context_value
 
-type 'msg ctx =
+type ctx =
   {
     process_custom: (Element.t -> event -> unit);
     custom_handlers: Custom.handler list;
-    redraw: unit -> unit;
     after_redraw: ((unit -> unit) -> unit);
-    run_cmd: 'msg. ('msg -> unit) -> Element.t -> 'msg Vdom.Cmd.t -> unit;
-    install_sub:'msg. ('msg -> unit) -> Element.t -> 'msg Vdom.Sub.t -> Sub.t;
-    process: 'msg -> unit;
     contexts: context_value IntMap.t;
   }
 
-let peek_context (type t) (ctx : _ ctx) (context : t context) : t =
+let peek_context (type t) (ctx : ctx) (context : t context) : t =
   match IntMap.find_opt (context_id context) ctx.contexts with
   | Some (Context_value (context', value)) ->
     begin match same_type (context_type context) (context_type context') with
@@ -312,14 +331,7 @@ let push_context ctx context value =
   let contexts = IntMap.add id (Context_value (context, value)) ctx.contexts in
   { ctx with contexts }
 
-let rec process_component ctx parent state update msg =
-  let model, priv, pub = update !state msg in
-  state := model;
-  ctx.run_cmd (process_component ctx parent state update) parent priv;
-  ctx.run_cmd ctx.process parent pub;
-  ctx.redraw ()
-
-let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
+let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
   fun ~parent ctx vdom ->
   match vdom with
   | Text {txt; key = _} ->
@@ -328,28 +340,27 @@ let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
   | Fragment {children; key = _} ->
       let children = List.map (blit ~parent ctx) children in
       let doms = List.concat_map get_doms children in
-      BFragment { vdom; doms; children }
+      let refs = List.concat_map get_refs children in
+      BFragment { vdom; doms; children; refs }
 
-  | Component {key = _; model_type; init; view; update } ->
+  | Component {key = _; model_type; msg_type; init; view; update } ->
       let state = ref init in
-      let process = process_component ctx parent state update in
-      let child = blit ~parent { ctx with process } (view init) in
-      BComponent { vdom; model_type; state; process; doms = get_doms child; child }
+      let child = blit ~parent ctx (view init) in
+      BComponent { vdom; model_type; msg_type; state; update; doms = get_doms child; refs = get_refs child; child; ref = ref () }
 
   | GetContext {context; child; key = _} ->
     let arg = peek_context ctx context in
     let child = blit ~parent ctx (child arg) in
-    BGetContext {vdom; doms = get_doms child; child }
+    BGetContext {vdom; doms = get_doms child; refs = get_refs child; child }
 
   | SetContext {context; child; value; key = _} ->
     let ctx = push_context ctx context value in
     let child = blit ~parent ctx child in
-    BSetContext {vdom; doms = get_doms child; child }
+    BSetContext {vdom; doms = get_doms child; refs = get_refs child; child }
 
   | Map {f; child; key = _} ->
-      let process msg = ctx.process (f msg) in
-      let child = blit ~parent { ctx with process } child in
-      BMap {vdom; doms = get_doms child; f; child}
+      let child = blit ~parent ctx child in
+      BMap {vdom; doms = get_doms child; refs = get_refs child; f; child}
 
   | Memo {f; arg; key = _} ->
       bmemo vdom (blit ~parent ctx (f arg))
@@ -377,9 +388,8 @@ let rec blit : 'msg. parent:_ -> 'msg ctx -> 'msg vdom -> 'msg ctrl =
       apply_attributes dom attributes;
       BElement {vdom; dom; children}
 
-  | Subscription {key = _ ; sub} ->
-      let sub = ctx.install_sub ctx.process parent sub in
-      BSubscription {vdom; sub}
+  | Subscription _ ->
+    assert false
 
 let blit ~parent ctx vdom =
   try blit ~parent ctx vdom
@@ -504,7 +514,7 @@ let insert_before parent o n =
     Printf.printf "replace_child(%s, %s, %s)\n" (print_element parent) (print_element o) (print_element n);
   Element.insert_before parent o n
 
-let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl -> msg vdom -> msg ctrl =
+let rec sync : type old_msg msg. ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl -> msg vdom -> msg ctrl =
   fun ctx parent prev_move next old vdom ->
   let fallback () =
     let x = blit ~parent ctx vdom in
@@ -531,29 +541,27 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
       BText {vdom; dom}
 
   | BMap {child = c1; _}, Map {f; child = c2; key = _} ->
-      let process msg = ctx.process (f msg) in
-      let child = sync { ctx with process } parent prev_move next c1 c2 in
-      BMap {vdom; doms = get_doms child; child; f}
+      let child = sync ctx parent prev_move next c1 c2 in
+      BMap {vdom; doms = get_doms child; refs = get_refs child; child; f}
 
-  | BComponent {model_type = t1; state; child = c1; _}, Component { model_type = t2; view; update; _ } ->
-      begin match same_type t1 t2 with
-      | None -> fallback ()
-      | Some Refl ->
-          let process = process_component ctx parent state update in
+  | BComponent {model_type = t1; msg_type = s1; state; child = c1; ref; _}, Component { model_type = t2; msg_type = s2; view; update; _ } ->
+      begin match same_type t1 t2, same_type s1 s2 with
+      | None, _ | _, None -> fallback ()
+      | Some Refl, Some Refl ->
           let c2 = view !state in
-          let child = sync { ctx with process } parent prev_move next c1 c2 in
-          BComponent {model_type = t1; vdom; doms = get_doms child; state; process; child}
+          let child = sync ctx parent prev_move next c1 c2 in
+          BComponent {model_type = t1; msg_type = s1; vdom; doms = get_doms child; refs = get_refs child; state; update; child; ref}
       end
 
   | BGetContext {child = c1; _}, GetContext {context; child = c2; _} ->
     let arg = peek_context ctx context in
     let child = sync ctx parent prev_move next c1 (c2 arg) in
-    BGetContext {vdom; doms = get_doms child; child}
+    BGetContext {vdom; doms = get_doms child; refs = get_refs child; child}
 
   | BSetContext {child = c1; _}, SetContext {context; value; child = c2; _} ->
     let ctx = push_context ctx context value in
     let child = sync ctx parent prev_move next c1 c2 in
-    BSetContext {vdom; doms = get_doms child; child}
+    BSetContext {vdom; doms = get_doms child; refs = get_refs child; child}
 
   | BMemo {child = c1; vdom = Memo {f = f1; arg = a1; key = _}; _}, Memo {f = f2; arg = a2; key = _} ->
       (* Is this safe !? *)
@@ -561,12 +569,6 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
         bmemo vdom (Obj.magic (c1 : old_msg ctrl) : msg ctrl)
       else
         bmemo vdom (sync ctx parent prev_move next c1 (f2 a2))
-
-  | BSubscription {vdom = Subscription{key = key1; _}; sub=sub1; _}, Subscription {key=key2; sub=sub2} when key1 = key2 ->
-      if sub1.sync sub2 then
-        BSubscription {vdom; sub = sub1}
-      else
-        fallback ()
 
   | BCustom {vdom = Custom {key=key1; elt=arg1; attributes=a1}; elt}, Custom {key=key2; elt=arg2; attributes=a2}
     when key1 = key2 && (arg1 == arg2 || elt.sync arg2) ->
@@ -576,7 +578,8 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
   | BFragment {vdom = Fragment e1; children; _}, Fragment e2 when e1.key = e2.key ->
       let children = sync_children ctx parent prev_move next children e2.children in
       let doms = List.concat_map get_doms children in
-      BFragment {vdom; doms; children }
+      let refs = List.concat_map get_refs children in
+      BFragment {vdom; doms; refs; children }
 
   | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns && e1.key = e2.key ->
       let children = sync_children ctx dom (ref false) (ref Element.null) children e2.children in
@@ -586,7 +589,7 @@ let rec sync : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t r
 
   | _ -> fallback ()
 
-and sync_children : type old_msg msg. msg ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl list -> msg vdom list -> msg ctrl list =
+and sync_children : type old_msg msg. ctx -> Element.t -> bool ref -> Element.t ref -> old_msg ctrl list -> msg vdom list -> msg ctrl list =
   fun ctx dom prev_move next old_children new_children ->
 
   (* TODO:
@@ -698,45 +701,112 @@ let sync ctx parent old vdom =
 
 type find =
   | NotFound
-  | Found: {process: 'msg -> unit; mapper: ('inner_msg -> 'msg); inner: 'inner_msg ctrl; parent: find} -> find
+  | Found: {process: 'msg -> unit; inner: 'msg ctrl; parent: find} -> find
 
-let rec found: type inner_msg msg. (msg -> unit) -> (inner_msg -> msg) -> find -> Element.t -> inner_msg ctrl -> find =
-  fun (type inner_msg msg) (process: msg -> unit) (mapper : inner_msg -> msg) parent dom -> function
-    | BElement _ | BText _ | BCustom _ as inner -> Found {process; mapper; inner; parent}
-    | BFragment {children; _} ->
-        begin match List.find (fun c -> List.memq dom (get_doms c)) children with
-        | exception Not_found -> assert false
-        | c -> (found process mapper parent dom c : find)
+  type process_ctx = {
+    run_cmd: 'msg. ('msg -> unit) -> Element.t -> 'msg Vdom.Cmd.t -> unit;
+    container: Element.t;
+    redraw: unit -> unit;
+    locate: Element.t -> reference -> find;
+  }
+
+  let rec process_component : 'priv. process_ctx -> _ -> _ -> 'priv registered_type -> 'priv -> unit =
+    fun (type priv) ctx parent ref (actual_msg_type : priv registered_type) (msg: priv) ->
+    match ctx.locate parent ref with
+    | Found {process; inner = BComponent { msg_type; state; update; _}; parent = _} ->
+        begin match same_type actual_msg_type msg_type with
+        | None -> ()
+        | Some Refl ->
+            let model, cmd = update !state msg in
+            state := model;
+            let process = function
+              | Pub msg -> process msg
+              | Priv priv -> process_component ctx parent ref msg_type priv
+            in
+            ctx.run_cmd process parent cmd;
+            ctx.redraw ()
         end
-    | BComponent {child; process; _} -> found process Fun.id parent dom child
-    | BMap {f; child; _} -> found process (fun x -> mapper (f x)) parent dom child
-    | BMemo {child; _}
-    | BSetContext {child; _}
-    | BGetContext {child; _} -> found process mapper parent dom child
-    | BSubscription _ -> assert false
+    | _ -> ()
+
+    and dom_found: type msg. process_ctx -> (msg -> unit) -> Element.t -> find -> Element.t -> msg ctrl -> find =
+      fun (type msg) ctx (process: msg -> unit) parent_dom parent dom -> function
+        | BElement _ | BText _ | BCustom _ as inner -> Found {process; inner; parent}
+        | BFragment {children; _} ->
+            begin match List.find (fun c -> List.memq dom (get_doms c)) children with
+            | exception Not_found -> assert false
+            | c -> (dom_found ctx process parent_dom parent dom c : find)
+            end
+        | BComponent {ref; child; msg_type; _} ->
+          let process = function
+          | Pub msg -> process msg
+          | Priv priv -> process_component ctx parent_dom ref msg_type priv
+        in
+          dom_found ctx process parent_dom parent dom child
+        | BMap {f; child; _} -> dom_found ctx (fun x -> process (f x)) parent_dom parent dom child
+        | BMemo {child; _}
+        | BSetContext {child; _}
+        | BGetContext {child; _} -> dom_found ctx process parent_dom parent dom child
+        | BSubscription _ -> assert false
+
+  and ref_found: type msg. process_ctx -> (msg -> unit) -> find -> Element.t -> reference -> msg ctrl -> find =
+      fun (type msg) ctx (process: msg -> unit) parent dom ref -> function
+        | BComponent {ref = ref'; _} | BSubscription {ref = ref'; _} as inner when ref == ref' -> Found {process; inner; parent}
+        | BFragment {children; _} ->
+            begin match List.find (fun c -> List.memq ref (get_refs c)) children with
+            | exception Not_found -> assert false
+            | c -> (ref_found ctx process parent dom ref c : find)
+            end
+        | BComponent {child; msg_type; _} ->
+          let process = function
+          | Pub msg -> process msg
+          | Priv priv -> process_component ctx dom ref msg_type priv
+        in
+          ref_found ctx process parent dom ref child
+
+        | BMap {f; child; _} -> ref_found ctx (fun x -> process (f x)) parent dom ref child
+        | BMemo {child; _}
+        | BSetContext {child; _}
+        | BGetContext {child; _} -> ref_found ctx process parent dom ref child
+        | _ -> NotFound
 
 (* Find a ctrl associated to a DOM element.
    Normalize by traversing Map node, and also return the composition of all such mappers
    from the root to the ctrl. *)
 
-let rec vdom_of_dom: ('msg -> unit) -> 'msg ctrl -> Element.t -> find = fun process root dom ->
+and vdom_of_dom: process_ctx -> ('msg -> unit) -> 'msg ctrl -> Element.t -> find = fun ctx process root dom ->
   (* hack to check dom == null?   Should move that to Ojs. *)
   match Ojs.option_of_js Element.t_of_js (Element.t_to_js dom) with
   | None -> NotFound
   | Some dom when List.memq dom (get_doms root) ->
-      found process Fun.id NotFound dom root
+      dom_found ctx process ctx.container NotFound dom root
   | Some dom ->
-      begin match vdom_of_dom process root (Element.parent_node dom) with
+      let parent_dom = Element.parent_node dom in
+      begin match vdom_of_dom ctx process root parent_dom with
       | NotFound -> NotFound
-      | Found {process; mapper; inner = BElement {children; _}; _} as parent ->
+      | Found {process; inner = BElement {children; _}; _} as parent ->
           begin match List.find (fun c -> List.memq dom (get_doms c)) children with
           | exception Not_found -> assert false
-          | c -> found process mapper parent dom c
+          | c -> dom_found ctx process parent_dom parent dom c
           end
-      | Found {mapper = _; inner = BCustom _; _} ->
-          NotFound
+      | Found {inner = BCustom _; _} -> NotFound
       | _ -> assert false
       end
+
+and vdom_of_ref: process_ctx -> ('msg -> unit) -> 'msg ctrl -> Element.t -> reference -> find =
+  fun ctx process root dom ref ->
+  begin match vdom_of_dom ctx process root dom with
+  | NotFound -> NotFound
+  | Found {process; inner = BElement {children; _}; _} as parent ->
+      begin match List.find (fun c ->
+        print_endline (key_of_vdom (get_vdom c));
+
+      List.memq ref (get_refs c)) children with
+      | exception Not_found -> print_endline "NotFound ??"; NotFound
+      | c -> ref_found ctx process parent dom ref c
+      end
+  | Found {inner = BCustom _; _} -> NotFound
+  | _ -> assert false
+  end
 
 let mouse_event dom e =
   let client_x = Event.client_x e in
@@ -801,19 +871,13 @@ let run (type msg model) ?(env = empty) ?container
   in
 
   let process_custom_fwd = ref (fun _ _ -> assert false) in
-  let process_fwd = ref (fun _ -> assert false) in
-  let redraw_fwd = ref (fun () -> assert false) in
-  let run_cmd process element = Cmd.run after_redraw (env.cmds @ !global.cmds) process element  in
-  let install_sub process parent = Sub.install (env.subs @ !global.subs) process parent in
+ (* let install_sub process parent = Sub.install (env.subs @ !global.subs) process parent in *)
   let ctx =
     {
       process_custom = (fun elt evt -> !process_custom_fwd elt evt);
       custom_handlers = env.customs;
-      redraw = (fun () -> !redraw_fwd ());
       after_redraw;
-      process = (fun msg -> !process_fwd msg);
-      run_cmd;
-      install_sub;
+      (* install_sub; *)
       contexts = IntMap.empty
     }
   in
@@ -843,29 +907,45 @@ let run (type msg model) ?(env = empty) ?container
         current := Some x;
         flush ()
   in
-  redraw_fwd := (fun () ->
+  let redraw () =
     if not !pending_redraw then begin
       pending_redraw := true;
       Window.request_animation_frame window redraw
     end
-  );
+  in
+  let run_cmd process parent =
+    Cmd.run after_redraw (env.cmds @ !global.cmds) process parent
+  in
   let rec process msg =
     try
       let (new_model : model), (cmd : msg Vdom.Cmd.t) = update !model msg in
       model := new_model;
-      run_cmd container cmd;
-      if not !pending_redraw then begin
-        pending_redraw := true;
-        Window.request_animation_frame window redraw
-      end
+      run_cmd process container cmd;
+      redraw ()
     with exn  ->
       Printf.printf "Error during vdom process: %s\n%!" (Printexc.to_string exn);
       raise exn
-  and run_cmd (parent : Js_browser.Element.t) cmd =
-    Cmd.run after_redraw (env.cmds @ (!global).cmds) process parent cmd
   in
-  process_fwd := process;
   List.iter (Element.append_child container) (get_doms x);
+
+  let locate_fwd = ref (fun _ -> assert false) in
+  let pctx : process_ctx = {
+    run_cmd;
+    redraw;
+    container;
+    locate = (fun element reference -> !locate_fwd element reference);
+  } in
+  let vdom_of_dom element =
+    match !current with
+    | None -> NotFound
+    | Some root -> vdom_of_dom pctx process root element
+  in
+  let locate element reference =
+    match !current with
+    | None -> NotFound
+    | Some root -> vdom_of_ref pctx process root element reference
+  in
+  locate_fwd := locate;
 
   let prev_value_attribute = "data-ocaml-vdom-prev-value" in
 
@@ -924,7 +1004,6 @@ let run (type msg model) ?(env = empty) ?container
       let rec propagate = function
         | Found {
             process;
-            mapper;
             inner = ( BElement {vdom = Element {attributes; _}; dom; _}
                     | BCustom  {vdom = Custom  {attributes; _}; elt = {dom; _}; _} );
             parent;
@@ -934,26 +1013,23 @@ let run (type msg model) ?(env = empty) ?container
               Element.set_attribute tgt prev_value_attribute (Element.value tgt);
             begin match apply_handler dom attributes with
             | None -> propagate parent
-            | Some msg -> process (mapper msg)
+            | Some msg -> process msg
             end
         | _ ->
             ()
       in
 
-      Option.iter (fun root ->
-          propagate (vdom_of_dom process root tgt);
-        ) !current;
+      propagate (vdom_of_dom tgt);
 
       if ty = "input" || ty = "blur" then
         let f () =
-          Option.iter
-            (fun root ->
-               match vdom_of_dom process root tgt with
+
+               match vdom_of_dom tgt with
                (* note: the new vdom can be different after processing
                   the event above *)
                (* !! This is probably broken now that we delay updating the vdom
                      with request_animation_frame !! *)
-               | Found {process = _ ; mapper = _; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+               | Found {process = _ ; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
                    List.iter
                      (function
                        | Property ("value", String s2) when s2 <> Element.value tgt -> Element.set_value tgt s2
@@ -962,7 +1038,6 @@ let run (type msg model) ?(env = empty) ?container
                      )
                      attributes
                | _ -> ()
-            ) !current
         in
         if !pending_redraw then after_redraw f else f ()
     with exn ->
@@ -970,29 +1045,25 @@ let run (type msg model) ?(env = empty) ?container
   in
 
   let process_custom tgt event =
-    Option.iter
-      (fun root ->
-         let apply process mapper attributes =
+         let apply process attributes =
            let select_handler = function
              | Handler h -> event.ev h
              | _ -> None
            in
            let msgs = List.filter_map select_handler attributes in
-           List.iter (fun msg -> process (mapper msg)) msgs
+           List.iter process msgs
          in
-         begin match vdom_of_dom process root tgt with
-         | Found {process; mapper; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
-             apply process mapper attributes
-         | Found {process; mapper; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
-             apply process mapper attributes
+         begin match vdom_of_dom tgt with
+         | Found {process; inner = BElement {vdom = Element {attributes; _}; _}; _} ->
+             apply process attributes
+         | Found {process; inner = BCustom  {vdom = Custom  {attributes; _}; _}; _} ->
+             apply process attributes
          | _ ->
              ()
          end
-      ) !current
       (* Do we need to do something similar to the "input" case in onevent? *)
   in
   process_custom_fwd := process_custom;
-
   let listeners =
     List.map
       (fun (event, capture) ->
@@ -1016,7 +1087,7 @@ let run (type msg model) ?(env = empty) ?container
         Event.Paste, false; (* ? *)
       ]
   in
-  run_cmd container cmd0;
+  run_cmd process container cmd0;
   let dispose () =
     Option.iter
       (fun root ->

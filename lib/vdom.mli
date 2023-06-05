@@ -224,6 +224,10 @@ val context_id: 'a context -> int
 val context_type: 'a context -> 'a registered_type
 val context_default_value: 'a context -> 'a
 
+type ('priv, 'pub) component_msg =
+  | Pub of 'pub
+  | Priv of 'priv
+
 type +'msg vdom =
   | Text of
       {
@@ -271,15 +275,17 @@ type +'msg vdom =
   | Subscription:
       {
        key: string;
-       sub: 'msg Sub.t;
+       sub: 'a Sub.t;
+       handler: 'a -> 'msg;
       } -> 'msg vdom
   | Component:
       {
         model_type: 'model registered_type;
+        msg_type: 'priv registered_type;
         key: string;
         init: 'model;
-        update: 'model -> 'priv -> 'model * 'priv Cmd.t * 'msg Cmd.t;
-        view: 'model -> 'priv vdom;
+        update: 'model -> 'priv -> 'model * ('priv, 'msg) component_msg Cmd.t;
+        view: 'model -> ('priv, 'msg) component_msg vdom;
       } -> 'msg vdom
   | Custom of
       {
@@ -366,16 +372,16 @@ val simple_app:
 val to_html: 'msg vdom -> string
 (** Convert to HTML *)
 
-type 'model component_factory =
-  { build: 'priv 'pub. ?key:string ->
-    init:'model ->
-    update:('model -> 'priv -> 'model * 'priv Cmd.t * 'pub Cmd.t) -> ('model -> 'priv vdom) -> 'pub vdom }
+type ('model, 'priv) component_factory =
+  { build: 'pub. ?key:string -> init:'model ->
+      update:('model -> 'priv -> 'model * ('priv, 'pub) component_msg Cmd.t) ->
+      ('model -> ('priv, 'pub) component_msg vdom) -> 'pub vdom }
 
-val component_factory: unit -> 'model component_factory
+val component_factory: unit -> ('model, 'priv) component_factory
 
 val ret: ?priv:'priv Cmd.t list -> ?pub:'pub Cmd.t list -> 'model -> 'model * 'priv Cmd.t * 'pub Cmd.t
 
 val set_context: ?key:string -> 'a context -> 'a -> 'b vdom -> 'b vdom
 val get_context: ?key:string -> 'a context -> ('a -> 'b vdom) -> 'b vdom
 
-val subscription: ?key:string -> 'msg Sub.t -> 'msg vdom
+val subscription: ?key:string -> 'a Sub.t -> ('a -> 'msg) -> 'msg vdom

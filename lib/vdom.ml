@@ -175,6 +175,10 @@ let create_context default_value = { context_type = register_type (); default_va
 let context_id { context_type; _ } = context_type.id
 let context_default_value { default_value; _ } = default_value
 
+type ('priv, 'pub) component_msg =
+  | Pub of 'pub
+  | Priv of 'priv
+
 type +'msg vdom =
   | Text of
       {
@@ -225,16 +229,18 @@ type +'msg vdom =
   | Subscription:
       {
         key: string;
-        sub: 'msg Sub.t;
+        sub: 'a Sub.t;
+        handler: 'a -> 'msg;
       } -> 'msg vdom
 
-  | Component:
+      | Component:
       {
         model_type: 'model registered_type;
+        msg_type: 'priv registered_type;
         key: string;
         init: 'model;
-        update: 'model -> 'priv -> 'model * 'priv Cmd.t * 'msg Cmd.t;
-        view: 'model -> 'priv vdom;
+        update: 'model -> 'priv -> 'model * ('priv, 'msg) component_msg Cmd.t;
+        view: 'model -> ('priv, 'msg) component_msg vdom;
       } -> 'msg vdom
   | Custom of
       {
@@ -399,20 +405,21 @@ let to_html vdom =
   aux vdom;
   Buffer.contents b
 
-type 'model component_factory =
-  { build: 'priv 'pub. ?key:string -> init:'model ->
-      update:('model -> 'priv -> 'model * 'priv Cmd.t * 'pub Cmd.t) ->
-      ('model -> 'priv vdom) -> 'pub vdom }
+type ('model, 'priv) component_factory =
+  { build: 'pub. ?key:string -> init:'model ->
+      update:('model -> 'priv -> 'model * ('priv, 'pub) component_msg Cmd.t) ->
+      ('model -> ('priv, 'pub) component_msg vdom) -> 'pub vdom }
 
 let component_factory () =
   let model_type = register_type () in
+  let msg_type = register_type () in
   let build ?key ~init ~update view =
     let key =
       match key with
       | Some k -> k
       | None -> "fragment"^(string_of_int model_type.id)
     in
-    Component {key; model_type; init; update; view}
+    Component {key; model_type; msg_type; init; update; view}
   in
   { build }
 
@@ -434,10 +441,10 @@ let get_context ?key context f =
   in
   GetContext {key; context; child = f}
 
-let subscription ?key sub =
+let subscription ?key sub handler =
   let key =
     match key with
     | None -> "subscription"
     | Some key -> key
   in
-  Subscription {key; sub}
+  Subscription {key; sub; handler}

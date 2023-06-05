@@ -1,5 +1,7 @@
 [@@@ocaml.warning "-a"]
 
+
+
 module V = Vdom
 
 type theme = Light | Dark
@@ -8,6 +10,34 @@ let string_of_theme = function
   | Dark -> "dark"
 
 let theme : theme Vdom.context = Vdom.create_context Light
+
+module Test = struct
+
+  module Cpt = struct
+   let {Vdom.build} = Vdom.component_factory ()
+
+   let cpt () =
+    build ~init:0 ~update:(fun n () -> V.return ~c:[V.Cmd.echo (V.Pub n)] (n + 1))
+     (fun n ->
+         V.elt "button" ~a:[Vdom.class_ "btn btn-secondary"; Vdom.onclick (fun _ -> V.Priv ())]
+           [Vdom.text (string_of_int n)]
+      )
+  end
+  let {Vdom.build} = Vdom.component_factory ()
+  let test () =
+    build ~init:0 ~update:(fun _ m -> V.return m)
+    (fun k ->
+      V.div ~a:[Vdom.class_ "hstack gap-2"] [
+        Cpt.cpt () |> V.map (fun n -> V.Priv (n + k));
+        Vdom.div [Vdom.text (string_of_int k)]
+      ]
+    )
+
+  (*  k = n * (n - 1) / 2 *)
+
+
+
+end
 
 module Dropdown = struct
 
@@ -27,9 +57,8 @@ module Dropdown = struct
     V.elt "button" ~a [V.text (String.capitalize_ascii txt)]
 
   let switch = function Open -> Close | Close -> Open
-  let update model = function
-    | Click -> Vdom.ret (switch model)
-    | Inner msg -> Vdom.ret ~pub:[Vdom.Cmd.echo msg] Close
+  let update model () = Vdom.return (switch model)
+
 
   let dropdown ?(a = []) ~title items =
     build ~key:"dropdown" ~init:Close ~update
@@ -37,7 +66,7 @@ module Dropdown = struct
          V.get_context theme
            (fun theme ->
               let button =
-                let a = [Vdom.onclick (fun _ -> Click); V.class_ "btn btn-secondary dropdown-toggle"; V.attr "type" "button" ] in
+                let a = [Vdom.onclick (fun _ -> V.Priv ()); V.class_ "btn btn-secondary dropdown-toggle"; V.attr "type" "button" ] in
                 Vdom.elt ~key:"toggle" "button" ~a [Vdom.text title];
               in
               let menu =
@@ -48,7 +77,7 @@ module Dropdown = struct
                        | Close -> "dropdown-menu"
                      ) ]
                 in
-                Vdom.elt ~key:"menu" "div" ~a items |> Vdom.map (fun x -> Inner x)
+                Vdom.elt ~key:"menu" "div" ~a items |> Vdom.map (fun x -> V.Pub x)
               in
               let a = [Vdom.class_ ("dropdown "^(string_of_theme theme))] in
               Vdom.div ~key:"dropdown" ~a [
@@ -56,26 +85,28 @@ module Dropdown = struct
                 menu
               ]
            )
-      )
 
+      )
 end
 
 module Id = struct
   type model = string Lazy.t
+  type msg = |
 
-  let {Vdom.build} : model Vdom.component_factory = Vdom.component_factory ()
+  let {Vdom.build} : (model, msg) Vdom.component_factory = Vdom.component_factory ()
 
   let cpt = ref 0
   let init () =
     incr cpt;
     "vdom-id-"^string_of_int !cpt
 
-  let update model pub = V.ret ~pub:[V.Cmd.echo pub] model
+  let update model : msg -> _ =
+    function _ -> .
 
   let use_id (type msg) (view: string -> msg V.vdom) : msg V.vdom =
     let init = Lazy.from_fun init in
     build ~init ~update (fun id ->
-        view (Lazy.force id)
+        view (Lazy.force id) |> Vdom.map (fun x -> V.Pub x)
       )
 
 end
@@ -96,7 +127,7 @@ module Tabs
     let a = if active then V.add_class "active" a else a in
     let a = if enabled then a else V.add_class "disabled" a in
     V.elt ~key "li" ~a:[V.class_ "nav-item"] [
-      V.elt "button" ~a:(V.onclick (fun _ -> `Change (Some key)) :: a) [ V.text title ]
+      V.elt "button" ~a:(V.onclick (fun _ -> Vdom.Priv (Some key)) :: a) [ V.text title ]
     ]
 
   type 'msg tab = {
@@ -114,16 +145,14 @@ module Tabs
       content
     }
 
-  let update model = function
-    | `Change key -> V.ret key
-    | `Inner msg -> V.ret ~pub:[V.Cmd.echo msg] model
+  let update model key = V.return key
 
   let tabs ?active ?active_default tabs =
     build ~init:active_default ~update
       (fun current ->
         let active = if active = None then current else active in
         Vdom.div ~key:"tabs" ~a:[Vdom.class_ "tabs"] [
-        Vdom.elt "ul" ~a:[Vdom.class_ "nav nav-tabs"] (
+        Vdom.elt "ul" ~a:[Vdom.class_ "mb-3 nav nav-tabs"] (
           List.mapi
             (fun index {key; title; enabled; content = _} ->
                let active =
@@ -146,7 +175,7 @@ module Tabs
                let a = if active then Vdom.add_class "show" a else Vdom.add_class "d-none" a in
               Vdom.div ~key ~a content
             ) tabs
-        ) |> V.map (fun x -> `Inner x)
+        ) |> V.map (fun x -> V.Pub x)
         ]
       )
 
@@ -180,6 +209,9 @@ let view ({theme = current_theme} : model) =
         Vdom.elt "p" [
           Vdom.text "The quick brown fox jumps over the lazy dog."
         ]
+      ];
+      Tabs.tab ~key:"test" ~title:"Test" [
+        Test.test ()
       ]
     ]
 

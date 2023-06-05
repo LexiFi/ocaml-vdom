@@ -12,15 +12,14 @@ module Sub: sig
   val parent: _ ctx -> Js_browser.Element.t
   val send_msg: 'msg ctx -> 'msg -> unit
 
-  type t = {
-    sync: 'a. 'a Vdom.Sub.t -> bool;
+  type 'msg t = {
+    sync: 'a. 'a Vdom.Sub.t -> ('a, 'msg) Vdom.eq option;
     dispose: unit -> unit;
   }
 
-  type handler = {f: 'msg. 'msg ctx -> 'msg Vdom.Sub.t -> t option}
+  type handler = {f: 'msg. 'msg ctx -> 'msg Vdom.Sub.t -> 'msg t option}
 
 end
-
 
 module Cmd: sig
   type 'msg ctx
