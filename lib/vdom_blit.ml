@@ -680,6 +680,7 @@ let run (type msg model) ?(env = empty) ?container
               | "click", Handler (Click f) -> Some (f (mouse_event dom evt))
               | "click", Handler (ClickCancel f) -> may_cancel (f (mouse_event dom evt))
               | "dblclick", Handler (DblClick f) -> Some (f (mouse_event dom evt))
+              | "dblclick", Handler (DblClickCancel f) -> may_cancel (f (mouse_event dom evt))
               | "blur", Handler (Blur msg) -> Some msg
               | "focus", Handler (Focus msg) -> Some msg
               | "mousemove", Handler (MouseMove f) -> Some (f (mouse_event dom evt))

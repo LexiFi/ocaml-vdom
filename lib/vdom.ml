@@ -36,6 +36,7 @@ type 'msg event_handler =
   | Click of (mouse_event -> 'msg)
   | ClickCancel of (mouse_event -> 'msg option)
   | DblClick of (mouse_event -> 'msg)
+  | DblClickCancel of (mouse_event -> 'msg option)
   | Focus of 'msg
   | Blur of 'msg
   | Input of (string -> 'msg)
@@ -72,6 +73,7 @@ let onmouseup msg = Handler (MouseUp msg)
 let onclick msg = Handler (Click msg)
 let onclick_cancel msg = Handler (ClickCancel msg)
 let ondblclick msg = Handler (DblClick msg)
+let ondblclick_cancel msg = Handler (DblClickCancel msg)
 let oncontextmenu msg = Handler (ContextMenu msg)
 let onfocus msg = Handler (Focus msg)
 let oninput msg = Handler (Input msg)

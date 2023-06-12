@@ -72,6 +72,7 @@ type 'msg event_handler =
   | Click of (mouse_event -> 'msg)
   | ClickCancel of (mouse_event -> 'msg option)
   | DblClick of (mouse_event -> 'msg)
+  | DblClickCancel of (mouse_event -> 'msg option)
   | Focus of 'msg
   | Blur of 'msg
   | Input of (string -> 'msg)
@@ -113,6 +114,7 @@ val onmouseup: (mouse_event -> 'msg) -> 'msg attribute
 val onclick: (mouse_event -> 'msg) -> 'msg attribute
 val onclick_cancel: (mouse_event -> 'msg option) -> 'msg attribute
 val ondblclick: (mouse_event -> 'msg) -> 'msg attribute
+val ondblclick_cancel: (mouse_event -> 'msg option) -> 'msg attribute
 val oncontextmenu: (mouse_event -> 'msg) -> 'msg attribute
 val onfocus: 'msg -> 'msg attribute
 val onblur: 'msg -> 'msg attribute
