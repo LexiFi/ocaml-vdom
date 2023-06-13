@@ -1,0 +1,10 @@
+(executable
+ (name index)
+ (libraries vdom bindings)
+ (modes js))
+
+(rule (copy index.bc.js index.js))
+
+(alias
+ (name default)
+ (deps index.js index.html))

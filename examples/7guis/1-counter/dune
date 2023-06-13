@@ -1,4 +1,0 @@
-(executable
- (name index)
- (modes js)
- (libraries vdom))
