@@ -47,3 +47,18 @@ let () =
   match Document.get_element_by_id document "run" with
   | None -> ()
   | Some button -> Element.add_event_listener button Click run true
+
+let help _ =
+  match Document.get_element_by_id document "examples" with
+  | None -> ()
+  | Some examples ->
+      let url =
+        Printf.sprintf "https://github.com/LexiFi/ocaml-vdom/blob/nojebar_7guis/examples/%s/README.md"
+          (fst Examples.v.(Element.selected_index examples))
+      in
+      ignore (Window.open_ window ~url ())
+
+let () =
+  match Document.get_element_by_id document "help" with
+  | None -> ()
+  | Some button -> Element.add_event_listener button Click help true

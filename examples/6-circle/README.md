@@ -1,4 +1,4 @@
-## Counter
+## 6-circle
 
 Challenge: Understanding the basic ideas of a language/toolkit.
 
