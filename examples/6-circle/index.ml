@@ -10,19 +10,13 @@ type circle =
     radius: int;
   }
 
-type selected =
-  {
-    circle: circle;
-    context: point option;
-    adjusting: int option;
-  }
-
 type model =
   {
     undo: model option;
     redo: model option;
-    selected: selected option;
+    selected: circle option;
     circles: circle list;
+    resizing: model option;
   }
 
 type msg =
@@ -31,9 +25,8 @@ type msg =
   | Select of circle
   | Create of point
   | CreateSvg of point
-  | Context of circle * point
-  | Adjust of circle
-  | Adjusting of int
+  | Resize of int
+  | ResizeEnd
 
 type 'msg Vdom.Cmd.t +=
   | Perform of (Js_browser.Element.t -> 'msg)
@@ -66,6 +59,7 @@ let init =
       redo = None;
       selected = None;
       circles = [];
+      resizing = None;
     }
 
 let to_svg_point x y _ =
@@ -92,8 +86,8 @@ let update model = function
   | Select c ->
       let selected =
         match model.selected with
-        | Some sel when c == sel.circle -> None
-        | _ -> Some {circle = c; context = None; adjusting = None}
+        | Some sel when c == sel -> None
+        | _ -> Some c
       in
       Vdom.return {model with selected}
   | Create {x; y} ->
@@ -103,34 +97,31 @@ let update model = function
       let circle = {center; radius = default_radius} in
       let circles = circle :: model.circles in
       Vdom.return {model with undo = Some model; redo = None; circles}
-  | Context (circle, pt) ->
-      Vdom.return {model with selected = Some {circle; context = Some pt; adjusting = None}}
-  | Adjust circle ->
-      Vdom.return {model with selected = Some {circle; context = None; adjusting = Some circle.radius}}
-  | Adjusting r ->
-      let selected =
-        match model.selected with
-        | None -> None
-        | Some sel -> Some {sel with adjusting = Some r}
-      in
-      Vdom.return {model with selected}
+  | Resize r ->
+      begin match model.selected with
+      | None -> Vdom.return model
+      | Some sel ->
+          let selected = {sel with radius = r} in
+          let circles = List.map (fun c -> if c == sel then selected else c) model.circles in
+          let resizing = match model.resizing with None -> Some model | Some _ as x -> x in
+          Vdom.return {model with selected = Some selected; circles; resizing}
+      end
+  | ResizeEnd ->
+      Vdom.return {model with resizing = None; undo = model.resizing}
 
 let svg ~selected circles =
   let make_circle c =
     let a =
-      let r = match selected with Some {circle; adjusting = Some r; _} when c == circle -> r | _ -> c.radius in
-      let fill = match selected with Some {circle; _} when c == circle -> "lightgray" | _ -> "white" in
+      let fill = match selected with Some circle when c == circle -> "lightgray" | _ -> "white" in
       let onclick _ = Select c in
-      let oncontextmenu evt = Context (c, {x = evt.Vdom.x; y = evt.Vdom.y}) in
       [
         Vdom.int_attr "cx" c.center.x;
         Vdom.int_attr "cy" c.center.y;
-        Vdom.int_attr "r" r;
+        Vdom.int_attr "r" c.radius;
         Vdom.attr "stroke" "black";
         Vdom.float_attr "stroke-width" 0.4;
         Vdom.attr "fill" fill;
         Vdom.onclick onclick;
-        Vdom.oncontextmenu oncontextmenu;
       ]
     in
     Vdom.svg_elt "circle" ~a []
@@ -152,7 +143,7 @@ let svg ~selected circles =
   in
   Vdom.svg_elt "svg" ~a (List.fold_left (fun accu c -> make_circle c :: accu) [rect] circles)
 
-let view {selected; circles; undo; redo} =
+let view {selected; circles; undo; redo; resizing = _} =
   let button name msg =
     let a = [Vdom.type_button; Vdom.onclick (fun _ -> msg)] in
     let a =
@@ -162,36 +153,28 @@ let view {selected; circles; undo; redo} =
     in
     Vdom.elt "button" ~a [Vdom.text name]
   in
-  let buttons = Vdom.div [button "Undo" Undo; button "Redo" Redo] in
+  let buttons =
+    let sizer =
+      let a =
+        let oninput s = Resize (int_of_float (float_of_string s)) in
+        let onmouseup _ = ResizeEnd in
+        let r = match selected with None -> 50 | Some c -> c.radius in
+        [
+          Vdom.attr "type" "range";
+          Vdom.oninput oninput;
+          Vdom.onmouseup onmouseup;
+          Vdom.int_attr "min" 0;
+          Vdom.int_attr "max" 100;
+          Vdom.int_attr "value" r;
+        ]
+      in
+      let a = match selected with None -> Vdom.attr "disabled" "" :: a | _ -> a in
+      Vdom.input ~a []
+    in
+    Vdom.div [button "Undo" Undo; button "Redo" Redo; sizer]
+  in
   let svg = Vdom.div [svg ~selected circles] in
-  let contextmenu =
-    match selected with
-    | Some {circle; context = Some _pt; _} ->
-        let onclick _ = Adjust circle in
-        Vdom.div ~a:[Vdom.onclick onclick] [Vdom.text "Adjust diameter..."]
-    | _ ->
-        Vdom.div []
-  in
-  let adjuster =
-    match selected with
-    | Some {adjusting = Some r; _} ->
-        let input =
-          let a =
-            let oninput s = Adjusting (int_of_float (float_of_string s)) in
-            [
-              Vdom.attr "type" "range";
-              Vdom.oninput oninput;
-              Vdom.int_attr "min" 0;
-              Vdom.int_attr "max" 100;
-              Vdom.int_attr "value" r;
-            ]
-          in
-          Vdom.input ~a []
-        in
-        Vdom.div [input]
-    | _ -> Vdom.div []
-  in
-  Vdom.div [buttons; svg; contextmenu; adjuster]
+  Vdom.div [buttons; svg]
 
 let _ =
   let app = Vdom.app ~init ~update ~view () in

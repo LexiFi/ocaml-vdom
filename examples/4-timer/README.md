@@ -1,4 +1,4 @@
-## Counter
+## 4-timer
 
 Challenge: Understanding the basic ideas of a language/toolkit.
 

@@ -22,7 +22,10 @@ module Time = struct
         Vdom_blit.Cmd.send_msg ctx (msg (Js_browser.Date.now ()));
         true
     | Every (d, msg) ->
-        ignore (Js_browser.Window.set_interval Js_browser.window (fun () -> Vdom_blit.Cmd.send_msg ctx (msg (Js_browser.Date.now ()))) d);
+        let _ =
+          Js_browser.Window.set_interval Js_browser.window
+            (fun () -> Vdom_blit.Cmd.send_msg ctx (msg (Js_browser.Date.now ()))) d
+        in
         true
     | _ ->
         false
