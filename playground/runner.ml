@@ -5,10 +5,16 @@ let () =
   JsooTop.initialize ()
 
 let run s =
-  (* Option.iter Element.remove_all_children (Document.get_element_by_id document "container"); *)
-  (* let null = open_out "/dev/null" in *)
-  let ppf = Format.std_formatter in (* Format.formatter_of_out_channel null in *)
-  ignore (JsooTop.use ppf s : bool)
+  let errbuf = Buffer.create 42 in
+  let ok = JsooTop.use (Format.formatter_of_buffer errbuf) s in
+  if not ok then begin
+    let err = Buffer.contents errbuf in
+    let body = Document.body document in
+    Element.remove_all_children body;
+    let pre = Document.create_element document "pre" in
+    Element.append_child pre (Document.create_text_node document err);
+    Element.append_child body pre
+  end
 
 let () =
   Window.add_event_listener window Message (fun event ->
