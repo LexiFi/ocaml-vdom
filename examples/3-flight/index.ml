@@ -8,8 +8,8 @@ type date =
 type model =
   {
     direction: direction;
-    start_date: (date, string) result;
-    end_date: (date, string) result;
+    start_date: date;
+    end_date: date;
   }
 
 type msg =
@@ -21,18 +21,15 @@ type msg =
 let init date =
   {
     direction = One_way;
-    start_date = Ok date;
-    end_date = Ok date;
+    start_date = date;
+    end_date = date;
   }
 
-let string_of_date = function
-  | Ok (y, m, d) -> Printf.sprintf "%02d.%02d.%04d" d m y
-  | Error s -> s
+let string_of_date (y, m, d) =
+  Printf.sprintf "%04d-%02d-%02d" y m d
 
 let parse_date s =
-  match List.map int_of_string_opt (String.split_on_char '.' s) with
-  | [Some d; Some m; Some y] -> Ok (y, m, d)
-  | _ -> Error s
+  Scanf.sscanf s "%04d-%02d-%02d" (fun y m d -> (y, m, d))
 
 let view {direction; start_date; end_date} =
   let select =
@@ -44,23 +41,26 @@ let view {direction; start_date; end_date} =
     let onchange = function
       | 0 -> Selected One_way
       | 1 -> Selected Return
-      | _ -> assert false
+      | _ -> assert false (* cannot happen *)
     in
     Vdom.elt "select" ~a:[Vdom.onchange_index onchange] [option One_way; option Return]
   in
   let date_input f d enabled =
     let a = [Vdom.oninput f; Vdom.value (string_of_date d)] in
-    let a = match d with Ok _ -> a | Error _ -> a (* FIXME *) in
     let a = if enabled then a else Vdom.attr "disabled" "" :: a in
+    let a = Vdom.type_ "date" :: a in
     Vdom.input ~a []
   in
   let button =
     let a = [Vdom.type_button; Vdom.onclick (fun _ -> Clicked)] in
     let a =
-      match direction, start_date, end_date with
-      | One_way, Ok _, _ -> a
-      | Return, Ok start_date, Ok end_date when start_date <= end_date -> a
-      | _ -> Vdom.attr "disabled" "" :: a
+      match direction with
+      | One_way -> a
+      | Return ->
+          if start_date <= end_date then
+            a
+          else
+            Vdom.attr "disabled" "" :: a
     in
     Vdom.elt "button" ~a [Vdom.text "Book"]
   in

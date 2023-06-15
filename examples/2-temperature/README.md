@@ -65,7 +65,7 @@ we do not change the value of the other input field.
 To finish, we initialize the app (setting the contens of both input fields to empty)
 and render as the body of the current document.
 
-```
+```ocaml
 let init =
   {celsius = ""; fahrenheit = ""}
 
