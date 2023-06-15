@@ -18,14 +18,6 @@ type msg =
   | End_date of string
   | Clicked
 
-let init date =
-  Vdom.return
-    {
-      direction = One_way;
-      start_date = date;
-      end_date = date;
-    }
-
 let string_of_date (y, m, d) =
   Printf.sprintf "%04d-%02d-%02d" y m d
 
@@ -92,10 +84,16 @@ let update model = function
   | Clicked ->
       Vdom.return ~c:[Alert "Your flight has been booked!"] model
 
-let default_date =
-  (2023, 05, 15)
+let init =
+  let date = (2023, 05, 15) in
+  Vdom.return
+    {
+      direction = One_way;
+      start_date = date;
+      end_date = date;
+    }
 
 let _ =
-  let app = Vdom.app ~init:(init default_date) ~update ~view () in
+  let app = Vdom.app ~init ~update ~view () in
   let container = Js_browser.Document.body Js_browser.document in
   Vdom_blit.dom (Vdom_blit.run ~container app)

@@ -134,7 +134,8 @@ let () =
 Finally, we render the app and hook it to the body of the current document:
 
 ```ocaml
-let init date =
+let init =
+  let date = (2023, 05, 15) in
   Vdom.return
     {
       direction = One_way;
@@ -142,11 +143,8 @@ let init date =
       end_date = date;
     }
 
-let default_date =
-  (2023, 05, 15)
-
 let _ =
-  let app = Vdom.app ~init:(init default_date) ~update ~view () in
+  let app = Vdom.app ~init ~update ~view () in
   let container = Js_browser.Document.body Js_browser.document in
   Vdom_blit.dom (Vdom_blit.run ~container app)
 ```
