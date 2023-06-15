@@ -20,6 +20,9 @@
       .cm-scroller {
         overflow: auto;
       }
+      .gutter {
+        background-color: rgb(229, 231, 235);
+      }
       #editor {
         overflow: hidden;
         flex: 1;
@@ -57,10 +60,10 @@
     <script src="vendor/split.min.js"></script>
     <script src="vendor/codemirror.js"></script>
     <script src="vendor/mllike.js"></script>
-    <!-- <script src="vendor/simplescrollbars.js"></script> -->
     <script src="vendor/active-line.js"></script>
     <script>
       Split(['#left', '#right'], {
+        gutterSize: 5,
         sizes: [50, 50],
         cursor: 'ew-resize'
       });
@@ -71,7 +74,6 @@
         lineNumbers: true,
         lineWrapping: true,
         styleActiveLine: true,
-        // scrollbarStyle: 'simple'
       });
     </script>
     <script src="index.js"></script>

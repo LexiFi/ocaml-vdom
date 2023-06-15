@@ -31,5 +31,5 @@
   (run js_of_ocaml --export %{dep:exports.txt} --toplevel --pretty %{dep:runner.bc} -o %{target})))
 
 (alias
- (name default)
+ (name all)
  (deps (source_tree vendor) runner.js runner.html index.js index.html))
