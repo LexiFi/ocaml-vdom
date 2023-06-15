@@ -19,11 +19,12 @@ type msg =
   | Clicked
 
 let init date =
-  {
-    direction = One_way;
-    start_date = date;
-    end_date = date;
-  }
+  Vdom.return
+    {
+      direction = One_way;
+      start_date = date;
+      end_date = date;
+    }
 
 let string_of_date (y, m, d) =
   Printf.sprintf "%04d-%02d-%02d" y m d
@@ -71,20 +72,30 @@ let view {direction; start_date; end_date} =
     button;
   ]
 
+type _ Vdom.Cmd.t +=
+  | Alert of string
+
+let () =
+  let f _ctx = function
+    | Alert s -> Js_browser.Window.alert Js_browser.window s; true
+    | _ -> false
+  in
+  Vdom_blit.register (Vdom_blit.cmd {Vdom_blit.Cmd.f})
+
 let update model = function
   | Selected direction ->
-      {model with direction}
+      Vdom.return {model with direction}
   | Start_date s ->
-      {model with start_date = parse_date s}
+      Vdom.return {model with start_date = parse_date s}
   | End_date s ->
-      {model with end_date = parse_date s}
+      Vdom.return {model with end_date = parse_date s}
   | Clicked ->
-      assert false
+      Vdom.return ~c:[Alert "Your flight has been booked!"] model
 
 let default_date =
   (2023, 05, 15)
 
 let _ =
-  let app = Vdom.simple_app ~init:(init default_date) ~update ~view () in
+  let app = Vdom.app ~init:(init default_date) ~update ~view () in
   let container = Js_browser.Document.body Js_browser.document in
   Vdom_blit.dom (Vdom_blit.run ~container app)

@@ -107,31 +107,46 @@ let parse_date s =
 
 let update model = function
   | Selected direction ->
-      {model with direction}
+      Vdom.return {model with direction}
   | Start_date s ->
-      {model with start_date = parse_date s}
+      Vdom.return {model with start_date = parse_date s}
   | End_date s ->
-      {model with end_date = parse_date s}
+      Vdom.return {model with end_date = parse_date s}
   | Clicked ->
-      assert false
+      Vdom.return ~c:[Alert "Your flight has been booked"] model
+```
+
+We would like to show a dialog box when the user clicks the button. To do this,
+we define a custom command `Alert s` and a handler for it:
+
+```ocaml
+type _ Vdom.Cmd.t +=
+  | Alert of string
+
+let () =
+  let f ctx = function
+    | Alert s -> Js_browser.Window.alert Js_browser.window s true
+    | _ -> false
+  in
+  Vdom_blit.register (Vdom_blit.cmd {Vdom_blit.Cmd.f})
 ```
 
 Finally, we render the app and hook it to the body of the current document:
 
 ```ocaml
 let init date =
-  {
-    direction = One_way;
-    start_date = date;
-    end_date = date;
-  }
+  Vdom.return
+    {
+      direction = One_way;
+      start_date = date;
+      end_date = date;
+    }
 
 let default_date =
   (2023, 05, 15)
 
 let _ =
-  let app = Vdom.simple_app ~init:(init default_date) ~update ~view () in
+  let app = Vdom.app ~init:(init default_date) ~update ~view () in
   let container = Js_browser.Document.body Js_browser.document in
   Vdom_blit.dom (Vdom_blit.run ~container app)
-
 ```
