@@ -88,11 +88,11 @@ let view {selected; circles; undo; redo; resizing = _} =
     Vdom.elt "button" ~a [Vdom.text name]
   in
   let buttons =
-    let sizer =
+    let resizer =
       let a =
         let oninput s = Resize (int_of_float (float_of_string s)) in
         let onmouseup _ = ResizeEnd in
-        let r = match selected with None -> 50 | Some c -> c.radius in
+        let r = match selected with None -> default_radius | Some c -> c.radius in
         [
           Vdom.attr "type" "range";
           Vdom.oninput oninput;
@@ -105,7 +105,7 @@ let view {selected; circles; undo; redo; resizing = _} =
       let a = match selected with None -> Vdom.attr "disabled" "" :: a | _ -> a in
       Vdom.input ~a []
     in
-    Vdom.div [button "Undo" Undo; button "Redo" Redo; sizer]
+    Vdom.div [button "Undo" Undo; button "Redo" Redo; resizer]
   in
   let svg = Vdom.div [svg ~selected circles] in
   Vdom.div [buttons; svg]
@@ -151,7 +151,7 @@ let update model = function
   | CreateSvg center ->
       let circle = {center; radius = default_radius} in
       let circles = circle :: model.circles in
-      Vdom.return {model with undo = Some model; redo = None; circles}
+      Vdom.return {model with undo = Some model; redo = None; circles; selected = None}
   | Resize r ->
       begin match model.selected with
       | None -> Vdom.return model
