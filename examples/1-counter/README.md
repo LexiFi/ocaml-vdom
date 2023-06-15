@@ -1,12 +1,43 @@
-## Counter
+## 1-counter
 
-Challenge: Understanding the basic ideas of a language/toolkit.
+In this example, we build a single input field with a button. The input field
+displays an integer (starting with 0) that is increased each time the button is
+pressed.
 
-The task is to build a frame containing a label or read-only textfield T and a
-button B. Initially, the value in T is “0” and each click of B increases the
-value in T by one.
+The model (or state) of the app consists only of the integer in question:
+```
+type model =
+  int
+```
+There is a single message that is sent when the button is clicked:
+```
+type msg =
+  | Clicked
+```
+The `view` function renders the app given the current state:
+```
+let view (model : model) =
+  Vdom.div [
+    Vdom.input ~a:[Vdom.value (string_of_int model); Vdom.bool_prop "readOnly" true] [];
+    Vdom.elt "button" ~a:[Vdom.type_button; Vdom.onclick (fun _ -> Clicked)]
+      [Vdom.text "Count"]
+  ]
+```
+The button emits a `Clicked` message when it is clicked.
 
-Counter serves as a gentle introduction to the basics of the language, paradigm
-and toolkit for one of the simplest GUI applications imaginable. Thus, Counter
-reveals the required scaffolding and how the very basic features work together
-to build a GUI application. A good solution will have almost no scaffolding.
+Finally, the `update` function updates the model when the `Clicked` message is
+received:
+
+```
+let update (model : model) Clicked =
+  model + 1
+```
+
+The tie the knot, we instantiate the app and fill the current document's body
+with it:
+```
+let _ =
+  let app = Vdom.simple_app ~init ~update ~view () in
+  let container = Js_browser.Document.body Js_browser.document in
+  Vdom_blit.dom (Vdom_blit.run ~container app)
+```
