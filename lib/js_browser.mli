@@ -686,6 +686,8 @@ module Window: sig
   val clear_interval: t -> interval_id -> unit [@@js.call]
   val request_animation_frame: t -> (float -> unit) -> unit [@@js.call]
 
+  val parent: t -> t [@@js.get]
+
   val open_: t -> ?url:string -> ?name:string -> ?features:string -> ?replace:bool -> unit -> t [@@js.call]
   val alert: t -> string -> unit [@@js.call]
 

@@ -39,9 +39,23 @@ let run _ =
       | None -> ()
       | Some window ->
           Element.add_event_listener iframe Load (fun _ ->
-              Window.post_message window (Ojs.string_to_js (get_value ())) "*"
-            ) false
+              Window.post_message window (Ojs.string_to_js (get_value ())) "*";
+            ) false;
       end
+
+let () =
+  Window.add_event_listener window Message (fun event ->
+      let lnum, cnum1, cnum2 =
+        match Ojs.list_of_js Ojs.int_of_js (Event.data event) with
+        | [lnum; cnum1; cnum2] -> lnum, cnum1, cnum2
+        | _ -> assert false
+      in
+      let pos line ch =
+        let line = line - 1 in (* CM lines are zero-based *)
+        Ojs.obj [|"line", Ojs.int_to_js line; "ch", Ojs.int_to_js ch|]
+      in
+      ignore (Ojs.call editor "setSelection" [|pos lnum cnum1; pos lnum cnum2|] : Ojs.t)
+    ) true
 
 let () =
   match Document.get_element_by_id document "run" with

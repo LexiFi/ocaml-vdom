@@ -15,7 +15,7 @@
  (name runner)
  (modes byte)
  (link_flags -linkall)
- (libraries js_of_ocaml-toplevel vdom)
+ (libraries js_of_ocaml-toplevel str vdom)
  (modules runner))
 
 (rule
