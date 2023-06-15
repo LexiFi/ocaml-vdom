@@ -24,7 +24,8 @@ let () =
         set_value (snd Examples.v.(idx))
       in
       Array.iter (fun v -> Element.append_child examples (option v)) Examples.v;
-      Element.add_event_listener examples Change onchange true
+      Element.add_event_listener examples Change onchange true;
+      set_value (snd Examples.v.(0))
 
 let run _ =
   match Document.get_element_by_id document "right" with
