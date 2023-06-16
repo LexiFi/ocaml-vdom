@@ -1,69 +1,83 @@
 type model =
   {
-    started: float;
-    now: float;
-    duration: float;
-    max: float;
+    prefix: string;
+    name: string;
+    surname: string;
+    list: (string * string) list;
+    selected: int option;
   }
 
 type msg =
-  | Tick of float
-  | Reset
-  | Restart of float
-  | Range of float
+  | Prefix of string
+  | Name of string
+  | Surname of string
+  | Select of int
+  | Create
+  | Update
+  | Delete
 
-module Time = struct
-  type 'msg Vdom.Cmd.t +=
-    | Now of (float -> 'msg)
-    | Every of int (* msec *) * (float -> 'msg)
-
-  let f ctx = function
-    | Now msg ->
-        Vdom_blit.Cmd.send_msg ctx (msg (Js_browser.Date.now ()));
-        true
-    | Every (d, msg) ->
-        ignore (Js_browser.Window.set_interval Js_browser.window (fun () -> Vdom_blit.Cmd.send_msg ctx (msg (Js_browser.Date.now ()))) d);
-        true
-    | _ ->
-        false
-
-  let () =
-    Vdom_blit.register (Vdom_blit.cmd {f})
-end
-
-let init duration max =
-  let c = [Time.Now (fun now -> Restart now); Time.Every (100, (fun now -> Tick now))] in
-  Vdom.return ~c
-    {
-      started = 0.0;
-      now = 0.0;
-      duration = duration *. 1000.;
-      max = max *. 1000.;
-    }
-
-let update model = function
-  | Reset ->
-      Vdom.return ~c:[Time.Now (fun now -> Restart now)] model
-  | Restart now ->
-      Vdom.return {model with started = now; now}
-  | Tick now ->
-      Vdom.return {model with now}
-  | Range duration ->
-      Vdom.return {model with duration}
-
-let view {started; now; duration; max} =
-  let elapsed = now -. started in
+let view {prefix; name; surname; list; selected} =
+  let button label msg enabled =
+    let a = [Vdom.type_button; Vdom.onclick (fun _ -> msg)] in
+    let a = if enabled then a else Vdom.attr "disabled" "" :: a in
+    Vdom.elt "button" ~a [Vdom.text label]
+  in
   Vdom.div
     [
-      Vdom.div [Vdom.txt_span "Elapsed time:";
-                Vdom.elt "progress" ~a:[Vdom.float_attr "value" elapsed; Vdom.float_attr "max" duration] []];
-      Vdom.div [Vdom.text (Printf.sprintf "%.1fs" (elapsed /. 1000.))];
-      Vdom.div [Vdom.txt_span "Duration:";
-                Vdom.input ~a:[Vdom.oninput (fun s -> Range (float_of_string s)); Vdom.attr "type" "range"; Vdom.float_attr "min" 0.0; Vdom.float_attr "max" max; Vdom.float_attr "value" duration] []];
-      Vdom.div [Vdom.elt "button" ~a:[Vdom.type_button; Vdom.onclick (fun _ -> Reset)] [Vdom.text "Reset"]];
+      Vdom.div [Vdom.txt_span "Filter prefix:"; Vdom.input ~a:[Vdom.value prefix; Vdom.oninput (fun s -> Prefix s)] []];
+      Vdom.div [
+        let options =
+          List.map (fun (name, surname) ->
+              Vdom.elt "option" [Vdom.text (Printf.sprintf "%s, %s" surname name)]
+            ) list
+        in
+        let a = [Vdom.int_attr "size" 10; Vdom.onchange_index (fun i -> Select i)] in
+        Vdom.elt "select" ~a options
+      ];
+      Vdom.div
+        [
+          Vdom.div [Vdom.txt_span "Name:"; Vdom.input ~a:[Vdom.value name; Vdom.oninput (fun s -> Name s)] []];
+          Vdom.div [Vdom.txt_span "Surname:"; Vdom.input ~a:[Vdom.value surname; Vdom.oninput (fun s -> Surname s)] []];
+        ];
+      Vdom.div [button "Create" Create true; button "Update" Update (selected <> None); button "Delete" Delete (selected <> None)];
     ]
 
+let update model = function
+  | Prefix prefix ->
+      {model with prefix}
+  | Name name ->
+      {model with name}
+  | Surname surname ->
+      {model with surname}
+  | Select i ->
+      let name, surname = List.nth model.list i in
+      {model with name; surname; selected = Some i}
+  | Create ->
+      {model with list = (model.name, model.surname) :: model.list}
+  | Update ->
+      begin match model.selected with
+      | None -> model
+      | Some i ->
+          {model with list = List.mapi (fun j s -> if i = j then (model.name, model.surname) else s) model.list}
+      end
+  | Delete ->
+      begin match model.selected with
+      | None -> model
+      | Some i ->
+          let j = ref (-1) in
+          {model with list = List.filter (fun _ -> incr j; !j <> i) model.list}
+      end
+
+let init =
+  {
+    prefix = "";
+    name = "";
+    surname = "";
+    list = [];
+    selected = None;
+  }
+
 let _ =
-  let app = Vdom.app ~init:(init 60.0 120.) ~update ~view () in
+  let app = Vdom.simple_app ~init ~update ~view () in
   let container = Js_browser.Document.body Js_browser.document in
   Vdom_blit.dom (Vdom_blit.run ~container app)
