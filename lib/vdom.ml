@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2022 LexiFi                                                                    *)
+(* Copyright (C) 2000-2023 LexiFi                                                                    *)
 
 
 module Cmd = struct
@@ -23,35 +23,141 @@ module Custom = struct
   type event = ..
 end
 
-type mouse_event = {x: int; y: int; page_x: float; page_y: float; element_x: float; element_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
+type mouse_event = {x: float; y: float; page_x: float; page_y: float; element_x: float Lazy.t; element_y: float Lazy.t; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type paste_event = {text: string; selection_start: int; selection_end: int}
 
-type 'msg event_handler =
-  | MouseDown of (mouse_event -> 'msg)
-  | MouseDownCancel of (mouse_event -> 'msg option)
-  | MouseUp of (mouse_event -> 'msg)
-  | Click of (mouse_event -> 'msg)
-  | ClickCancel of (mouse_event -> 'msg option)
-  | DblClick of (mouse_event -> 'msg)
-  | Focus of 'msg
-  | Blur of 'msg
-  | Input of (string -> 'msg)
-  | Change of (string -> 'msg)
-  | ChangeIndex of (int -> 'msg)
-  | ChangeChecked of (bool -> 'msg)
-  | MouseMove of (mouse_event -> 'msg)
-  | MouseEnter of (mouse_event -> 'msg)
-  | MouseLeave of (mouse_event -> 'msg)
-  | MouseOver of (mouse_event -> 'msg)
-  | KeyDown of (key_event -> 'msg)
-  | KeyDownCancel of (key_event -> 'msg option)
-  | KeyUp of (key_event -> 'msg)
-  | KeyUpCancel of (key_event -> 'msg option)
-  | ContextMenu of (mouse_event -> 'msg)
-  | Paste of (paste_event -> 'msg option)
+type js_object = .. (* forward declaration in Vdom_blit, to avoid depending to DOM API here *)
+
+module Decoder = struct
+
+  type arg_value =
+    | StringArg of string
+    | BoolArg of bool
+    | FloatArg of float
+    | IntArg of int
+
+  type _ t =
+    | Field : string * 'msg t -> 'msg t
+    | Method : string * arg_value list * 'msg t -> 'msg t
+    | Bind : ('a -> 'msg t) * 'a t -> 'msg t
+    | Const : 'msg -> 'msg t
+    | Factor : ('a -> 'msg t) -> ('a -> ('msg, string) Result.t) t
+    | String : string t
+    | Int : int t
+    | Float : float t
+    | Bool : bool t
+    | Object : js_object t
+    | List : 'a t -> 'a list t
+    | Fail : string -> 'msg t
+    | Try : 'a t -> 'a option t
+
+  let field key d = Field (key, d)
+
+  let method_ name arg d = Method (name, arg, d)
+
+  let bind f d = Bind (f, d)
+
+  let ( let* ) d f = bind f d
+
+  let const msg = Const msg
+
+  let return = const
+
+  let factor f = Factor f
+
+  let map f d = let* msg = d in const (f msg)
+
+  let ( let+ ) d f = map f d
+
+  let pair d1 d2 = let* x1 = d1 in let+ x2 = d2 in (x1, x2)
+
+  let ( and+ ) = pair
+
+  let app f d = let* ff = f in map ff d
+
+  let map2 f d1 d2 = let* x1 = d1 in let+ x2 = d2 in f x1 x2
+
+  let map_some f = map (fun x -> Some (f x))
+
+  let string = String
+
+  let int = Int
+
+  let float = Float
+
+  let bool = Bool
+
+  let unit = const ()
+
+  let object_ = Object
+
+  let list d = List d
+
+  let fail error = Fail error
+
+  let try_ d = Try d
+
+  let mouse_event =
+    let+ x = field "clientX" float
+    and+ y = field "clientY" float
+    and+ left_top = factor (fun () ->
+        field "currentTarget" @@
+        method_ "getBoundingClientRect" [] @@
+        let+ left = field "left" float
+        and+ top = field "top" float in
+        (left, top))
+    and+ page_x = field "pageX" float
+    and+ page_y = field "pageY" float
+    and+ buttons = field "buttons" int
+    and+ alt_key = field "altKey" bool
+    and+ ctrl_key = field "ctrlKey" bool
+    and+ shift_key = field "shiftKey" bool
+    in
+    let left_top = Lazy.from_fun left_top in
+    let get x =
+      match Lazy.force x with
+      | Ok x -> x
+      | Error err -> failwith err
+    in
+    let element_x = lazy (x -. fst (get left_top)) in
+    let element_y = lazy (y -. snd (get left_top)) in
+    {
+      x;
+      y;
+      page_x;
+      page_y;
+      element_x;
+      element_y;
+      buttons;
+      alt_key;
+      ctrl_key;
+      shift_key;
+    }
+
+  let key_event =
+    let+ which = field "which" int
+    and+ alt_key = field "altKey" bool
+    and+ ctrl_key = field "ctrlKey" bool
+    and+ shift_key = field "shiftKey" bool in
+    {which; alt_key; ctrl_key; shift_key}
+
+  let paste_event =
+    let+ text =
+      field "clipboardData"
+      @@ method_ "getData" [StringArg "text"] string
+    and+ selection_start = field "currentTarget.selectionStart" int
+    and+ selection_end = field "currentTarget.selectionEnd" int in
+    {text; selection_start; selection_end}
+
+end
+
+type 'msg msg_options = {msg: 'msg option; stop_propagation: bool; prevent_default: bool}
+
+type +'msg event_handler =
+  | Decoder : { event_type : string; decoder : 'a msg_options Decoder.t; map : 'a option -> 'msg option } -> 'msg event_handler
   | CustomEvent of (Custom.event -> 'msg option)
 
 type prop_val =
@@ -60,34 +166,88 @@ type prop_val =
   | Float of float
   | Bool of bool
 
-type 'msg attribute =
+type +'msg attribute =
   | Property of string * prop_val
   | Style of string * string
   | Handler of 'msg event_handler
   | Attribute of string * string
 
-let onmousedown msg = Handler (MouseDown msg)
-let onmousedown_cancel msg = Handler (MouseDownCancel msg)
-let onmouseup msg = Handler (MouseUp msg)
-let onclick msg = Handler (Click msg)
-let onclick_cancel msg = Handler (ClickCancel msg)
-let ondblclick msg = Handler (DblClick msg)
-let oncontextmenu msg = Handler (ContextMenu msg)
-let onfocus msg = Handler (Focus msg)
-let oninput msg = Handler (Input msg)
-let onchange msg = Handler (Change msg)
-let onchange_index msg = Handler (ChangeIndex msg)
-let onchange_checked msg = Handler (ChangeChecked msg)
-let onblur msg = Handler (Blur msg)
-let onmousemove msg = Handler (MouseMove msg)
-let onmouseenter msg = Handler (MouseEnter msg)
-let onmouseleave msg = Handler (MouseLeave msg)
-let onmouseover msg = Handler (MouseOver msg)
-let onkeydown msg = Handler (KeyDown msg)
-let onkeydown_cancel msg = Handler (KeyDownCancel msg)
-let onkeyup msg = Handler (KeyUp msg)
-let onkeyup_cancel msg = Handler (KeyUpCancel msg)
-let onpaste msg = Handler (Paste msg)
+let on_with_options event_type decoder =
+  Handler (Decoder {event_type; decoder; map = Fun.id})
+
+let on ?prevent_default ?stop_propagation event_type decoder =
+  let prevent_default = match prevent_default with Some () -> true | None -> false in
+  let stop_propagation = match stop_propagation with Some () -> true | None -> false in
+  on_with_options event_type
+    Decoder.(let+ msg = decoder in
+             {msg; stop_propagation; prevent_default})
+
+let on_cancel ?stop_propagation event_type decoder =
+  let stop_propagation = match stop_propagation with Some () -> true | None -> false in
+  on_with_options event_type
+    Decoder.(let+ msg = decoder in
+             match msg with
+             | Some _ -> {msg; stop_propagation; prevent_default = true}
+             | None ->   {msg; stop_propagation; prevent_default = false})
+
+let on_js_with_options event_type handler =
+  on_with_options event_type
+    Decoder.(let+ o = object_ in handler o)
+
+let on_js ?prevent_default ?stop_propagation event_type handler =
+  let prevent_default = match prevent_default with Some () -> true | None -> false in
+  let stop_propagation = match stop_propagation with Some () -> true | None -> false in
+  on_js_with_options event_type
+    (fun e -> {msg = handler e; stop_propagation; prevent_default})
+
+let onmouseevent ?prevent_default ?stop_propagation type_ msg = on ?prevent_default ?stop_propagation type_ (Decoder.map_some msg Decoder.mouse_event)
+let onmouseevent_cancel ?stop_propagation type_ msg = on_cancel ?stop_propagation type_ (Decoder.map msg Decoder.mouse_event)
+let onmousedown ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "mousedown" msg
+let onmousedown_cancel ?stop_propagation msg = onmouseevent_cancel ?stop_propagation "mousedown" msg
+let onmouseup ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "mouseup" msg
+let onclick ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "click" msg
+let onclick_cancel ?stop_propagation msg = onmouseevent_cancel ?stop_propagation "click" msg
+let ondblclick ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "dblclick" msg
+let oncontextmenu ?stop_propagation msg = onmouseevent ~prevent_default:() ?stop_propagation "contextmenu" msg
+let onmousemove ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "mousemove" msg
+let onmouseenter ?prevent_default ?stop_propagation msg =
+  on ?prevent_default ?stop_propagation "mouseenter" Decoder.(
+      let* target = field "target" object_
+      and+ current_target = field "currentTarget" object_ in
+      if target = current_target then
+        map_some msg mouse_event
+      else
+        const None
+    )
+let onmouseleave ?prevent_default ?stop_propagation msg =
+  on ?prevent_default ?stop_propagation "mouseleave" Decoder.(
+      let* target = field "target" object_
+      and+ current_target = field "currentTarget" object_ in
+      if target = current_target then
+        map_some msg mouse_event
+      else
+        const None
+    )
+let onmouseover ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "mouseover" msg
+
+let onfocus ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_propagation "focus" (Decoder.const (Some msg))
+let onblur ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_propagation "blur" (Decoder.const (Some msg))
+
+let oninput ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_propagation "input" Decoder.(map_some msg (field "target.value" string))
+let onchange ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_propagation "change" Decoder.(map_some msg (field "target.value" string))
+
+let onchange_index ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_propagation "change" Decoder.(map_some msg (field "target.selectedIndex" int))
+let onchange_checked ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_propagation "click" Decoder.(map_some msg (field "target.checked" bool))
+
+let onkeyevent ?prevent_default ?stop_propagation type_ msg = on ?prevent_default ?stop_propagation type_ (Decoder.map_some msg Decoder.key_event)
+let onkeyevent_cancel ?stop_propagation type_ msg = on_cancel ?stop_propagation type_ (Decoder.map msg Decoder.key_event)
+let onkeydown ?prevent_default ?stop_propagation msg = onkeyevent ?prevent_default ?stop_propagation "keydown" msg
+let onkeydown_cancel ?stop_propagation msg = onkeyevent_cancel ?stop_propagation "keydown" msg
+let onkeyup ?prevent_default ?stop_propagation msg = onkeyevent ?prevent_default ?stop_propagation "keyup" msg
+let onkeyup_cancel ?stop_propagation msg = onkeyevent_cancel ?stop_propagation "keyup" msg
+
+let onpaste ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_propagation "paste" (Decoder.map msg Decoder.paste_event)
+
 let oncustomevent msg = Handler (CustomEvent msg)
 
 
@@ -103,6 +263,7 @@ let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x
 let autofocus_if_visible = str_prop "autofocus" "if-visible"
+let autosubmit = bool_prop "autosubmit" true
 let select = bool_prop "select" true
 
 let class_ x = Property ("className", String x)
@@ -131,6 +292,11 @@ type +'msg vdom =
         key: string;
         txt: string;
       }
+  | Fragment of
+      {
+        key: string;
+        children: 'msg vdom list;
+      }
   | Element of
       {
         key: string;
@@ -156,9 +322,12 @@ type +'msg vdom =
         key: string;
         elt: Custom.t;
         attributes: 'msg attribute list;
+        propagate_events: bool;
       }
 
 let text ?(key ="_txt") txt = Text {key; txt}
+
+let fragment ?(key ="_fragment") children = Fragment {key; children}
 
 type ('msg, 'res) elt_gen =
   ?key:string ->
@@ -191,7 +360,7 @@ let map_attr f = function
 
 let map ?(key = "_map") f child = Map {key; f; child}
 let memo ?(key = "_memo") f arg = Memo {key; f; arg}
-let custom ?(key ="_custom") ?(a = []) elt = Custom {key; elt; attributes = a}
+let custom ?(key ="_custom") ?(a = []) ?propagate_events elt = Custom {key; elt; attributes = a; propagate_events = (propagate_events = Some ())}
 
 let return ?(c = []) model = model, Cmd.batch c
 
@@ -212,15 +381,6 @@ let simple_app ~init ~update ~view () =
     ~view
     ()
 
-
-type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
-
-let blur_event = {ev = function Blur msg -> Some msg | _ -> None}
-let input_event s = {ev = function Input f -> Some (f s) | _ -> None}
-let checked_event b = {ev = function ChangeChecked f -> Some (f b) | _ -> None}
-let change_event s = {ev = function Change f -> Some (f s) | _ -> None}
-let change_index_event i = {ev = function ChangeIndex f -> Some (f i) | _ -> None}
-let custom_event e = {ev = function CustomEvent f -> f e | _ -> None}
 
 let trim_end c s =
   let l = ref (String.length s) in
@@ -258,6 +418,11 @@ let to_html vdom =
                      | Int i -> string_of_int i
                      | Float f -> trim_end '.' (string_of_float f)
                      | Bool b -> string_of_bool b
+                   in
+                   let name =
+                     match name with
+                     | "className" -> "class"
+                     | _ -> name
                    in
                    (name, value) :: attrs, styles
                | Style (name, value) ->
@@ -301,6 +466,8 @@ let to_html vdom =
           Buffer.add_string b tag;
           Buffer.add_char b '>'
         end
+    | Fragment {key=_; children} ->
+        List.iter aux children
     | Map {key=_; f=_; child} ->
         aux child
     | Memo {key=_; f; arg} ->
