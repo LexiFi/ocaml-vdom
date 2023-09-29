@@ -1,6 +1,13 @@
 Next release
 ============
 
+0.3
+===
+
+- Custom browser event handlers with Elm-style JavaScript decoders
+- Fragments: virtual nodes not associated to a concrete DOM
+- Option to propagate browser events occurring inside custom elements to the VDOM
+
 0.2
 ===
 
