@@ -51,7 +51,7 @@ module Window = struct
 
   let handler ~send event =
     let dispose =
-      new_handler event (fun x -> send (Vdom.custom_event (WindowEvent x)))
+      new_handler event (fun x -> send (Vdom_blit.Custom.custom_event (WindowEvent x)))
     in
     let sync ct =
       match ct with WindowListener kind -> kind = event | _ -> false

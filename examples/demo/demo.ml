@@ -224,9 +224,9 @@ end
 
 module MouseMove = struct
 
-  type evt = {x: int; y: int; buttons: int}
+  type evt = {x: float; y: float; buttons: int}
 
-  let init = return {x = 0; y = 0; buttons = 0}
+  let init = return {x = 0.; y = 0.; buttons = 0}
 
   let view ({x; y; buttons} : evt) =
     elt "span"
@@ -235,7 +235,7 @@ module MouseMove = struct
         style "background-color" "red"
       ]
       [
-        text (Printf.sprintf "x = %i; y = %i; buttons = %i" x y buttons)
+        text (Printf.sprintf "x = %f; y = %f; buttons = %i" x y buttons)
       ]
 
   let update _ evt = return evt
