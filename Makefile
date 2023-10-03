@@ -5,21 +5,13 @@
 .PHONY: all examples clean install uninstall doc
 
 all:
-	dune build @install @DEFAULT
+	dune build @all
 
 examples:
-	dune build @examples/DEFAULT
+	dune build @examples/all
 
 doc:
 	dune build @doc
 
 clean:
 	dune clean
-
-PREFIX := $$(opam config var prefix)
-
-install:
-	opam-installer --prefix $(PREFIX) ocaml-vdom.install
-
-uninstall:
-	opam-installer -u --prefix $(PREFIX) ocaml-vdom.install
