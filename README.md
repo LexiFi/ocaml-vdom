@@ -1,4 +1,4 @@
-ocaml-vdom: Elm architecture and (V)DOM for OCaml
+vdom: Elm architecture and (V)DOM for OCaml
 =================================================
 
 [![Build Status](https://travis-ci.com/LexiFi/ocaml-vdom.svg?branch=master)](https://travis-ci.com/LexiFi/ocaml-vdom)
@@ -32,13 +32,13 @@ Installation (with OPAM)
 ------------------------
 
 ```
-opam install ocaml-vdom
+opam install vdom
 ```
 
 Install dependencies
 ------------------------
 ```
-opam install ocaml-vdom --deps-only
+opam install vdom --deps-only
 ```
 
 
@@ -49,9 +49,6 @@ Manual installation
 git clone https://github.com/LexiFi/ocaml-vdom.git
 cd ocaml-vdom
 make all
-make doc
-make examples   # Optional (browse index.html files in _build/default/examples to try out)
-make install
 ```
 
 
@@ -171,7 +168,6 @@ open Vdom
 
 (* Definition of the vdom application *)
 
-type model = .... (* the state of the application *)
 let view model =  ...  (* the state->vdom rendering function *)
 let init = return ... (* the initial state *)
 let update model = function .... (* the state-updating function *)
@@ -190,19 +186,21 @@ let run () =
 let () = Window.set_onload window run
 ```
 
-Compiling this to Javascript:
+Use the following Dune file to compile this to JavaScript:
 
 ```
-ocamlfind ocamlc -package ocaml-vdom -no-check-prims -linkpkg -o myprog.exe myprog.ml
-js_of_ocaml +gen_js_api/ojs_runtime.js -o myprog.js myprog.exe
+(executable
+ (name myprog)
+ (libraries vdom)
+ (modes js))
 ```
 
-The Javascript code can then be used from a simple HTML file such as:
+The resulting JavaScript file `myprog.bc.js` can be found in the `_build` directory and can then be used from a simple HTML file such as:
 
 ```html
 <html>
   <head>
-    <script src="myprog.js"></script>
+    <script src="myprog.bc.js"></script>
   </head>
   <body>
   </body>
@@ -222,9 +220,9 @@ About
 -----
 
 This project has been created by LexiFi initially for its internal
-use.  It is already used in production but it is still relatively new
-and no commitment is made on the stability of its interface.  So
-please let us know if you consider using it!
+use. It has bees used in production since 2016 but no commitment is made on
+the stability of its interface. So please let us know if you consider
+using it!
 
 This ocaml-vdom package is licensed by LexiFi under the terms of the
 [MIT license](LICENSE).
