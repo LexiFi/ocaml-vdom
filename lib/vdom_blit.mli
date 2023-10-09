@@ -1,10 +1,41 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2022 LexiFi                                                                    *)
+(* Copyright (C) 2000-2023 LexiFi                                                                    *)
 
 
 (** {1 Rendering "Virtual applications" to concrete ones} *)
 
+type Vdom.js_object += Ojs of Ojs.t
+
+module BDecoder: sig
+
+  val decode: ?extra_fields:(string * Ojs.t) list -> 'a Vdom.Decoder.t -> Ojs.t -> ('a, string) Result.t
+  (** Evaluate and run a decoder. Returns `Error` in case of error. If specified, `extra_fields` are fields artificially accessible from the object's root. *)
+
+end
+
+module Encoder: sig
+
+  type arg_value =
+    | StringArg of string
+    | BoolArg of bool
+    | FloatArg of float
+
+  type t =
+    | Unit
+    | String of string
+    | Int of int
+    | Float of float
+    | Bool of bool
+    | List of t list
+    | Obj of (string * t) list
+    | Fun of (arg_value list -> t)
+    (** The type of JavaScript object structural builders.
+        It allows to create JS objects with fields and methods casted from OCaml values. *)
+
+  val encode: t -> Ojs.t
+
+end
 
 module Cmd: sig
   type 'msg ctx
@@ -24,11 +55,22 @@ module Custom: sig
   type t
   (** A controller for a custom element. *)
 
+  type event =
+    | Custom of Vdom.Custom.event
+    | Encoded of { event_type: string; encoder: Encoder.t }
+
+  val blur_event: event
+  val input_event: string -> event
+  val checked_event: bool -> event
+  val change_event: string -> event
+  val change_index_event: int -> event
+  val custom_event: Vdom.Custom.event -> event
+
   val make: ?dispose:(unit -> unit) -> sync:(Vdom.Custom.t -> bool) -> Js_browser.Element.t -> t
   (** Create a custom controller out of DOM element.
 
       The [sync] function is in charge of updating the internal state
-      of the custom element when the VDOM changes.  It must return [true]
+      of the custom element when the VDOM changes. It must return [true]
       if the update was successful, or [false] if the element needs to be destroyed
       and recreated. *)
 
@@ -38,7 +80,7 @@ module Custom: sig
 
   val parent: ctx -> Js_browser.Element.t
 
-  val send_event: ctx -> Vdom.event -> unit
+  val send_event: ctx -> event -> unit
   (** Can only be called after the handler returns (typically in a DOM event callback). *)
 
   val after_redraw: ctx -> (unit -> unit) -> unit

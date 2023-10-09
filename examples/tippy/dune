@@ -6,5 +6,5 @@
 (rule (copy main.bc.js main.js))
 
 (alias
- (name DEFAULT)
+ (name all)
  (deps main.js index.html))

@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2022 LexiFi                                                                    *)
+(* Copyright (C) 2000-2023 LexiFi                                                                    *)
 
 (** {1 Bindings for the DOM and other client-side Javascript APIs} *)
 
@@ -119,13 +119,40 @@ module Date : sig
   val to_UTC_string : t -> string [@@js.call]
 end
 
-module File : sig
-  type t = private Ojs.t
+module ArrayBuffer : sig
+  type t
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
-  val name: t -> string [@@js.get]
+  val create: int -> t [@@js.new "ArrayBuffer"]
+end
+
+module Blob : sig
+  type options
+  val options: ?type_:string -> ?endings:string -> unit -> options [@@js.builder]
+
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val create: Ojs.t list -> ?options:options -> unit -> t [@@js.new "Blob"]
+
   val size: t -> int [@@js.get]
   val type_: t -> string [@@js.get]
+
+  val text: t -> unit -> string Promise.t [@@js.call]
+end
+
+module File : sig
+  type t = private Blob.t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  type options
+  val options: ?type_:string -> ?last_modified:float -> unit -> options [@@js.builder]
+
+  val create: Blob.t array -> string -> options -> t [@@js.new "File"]
+
+  val name: t -> string [@@js.get]
 end
 
 module DataTransfer : sig
@@ -322,13 +349,15 @@ module Event : sig
   [@@js.enum]
 
   val target: t -> Ojs.t [@@js.get]
+  val related_target: t -> Ojs.t option [@@js.get]
   val prevent_default: t -> unit [@@js.call]
+  val stop_propagation: t -> unit [@@js.call]
   val type_: t -> string [@@js.get]
 
   val init_event: t -> kind -> bool -> bool -> unit [@@js.call]
 
-  val client_x: t -> int (* mouse *) [@@js.get]
-  val client_y: t -> int (* mouse *) [@@js.get]
+  val client_x: t -> float (* mouse *) [@@js.get]
+  val client_y: t -> float (* mouse *) [@@js.get]
 
   val page_x: t -> float (* mouse *) [@@js.get]
   val page_y: t -> float (* mouse *) [@@js.get]
@@ -339,12 +368,12 @@ module Event : sig
   val movement_x: t -> int (* mouse *) [@@js.get]
   val movement_y: t -> int (* mouse *) [@@js.get]
 
-  val buttons: t -> int  (* mouse *) [@@js.get]
+  val buttons: t -> int (* mouse *) [@@js.get]
 
   val alt_key: t -> bool (* key *) [@@js.get]
   val ctrl_key: t -> bool (* key *) [@@js.get]
   val shift_key: t -> bool (* key *) [@@js.get]
-  val which: t -> int    (* key *) [@@js.get]
+  val which: t -> int (* key *) [@@js.get]
   val code: t -> string (* key *) [@@js.get]
   val key: t -> string (* key *) [@@js.get]
 
@@ -353,8 +382,11 @@ module Event : sig
 
   val data_transfer: t -> DataTransfer.t (* drag/drop *) [@@js.get]
   val clipboard_data: t -> DataTransfer.t (* paste *) [@@js.get]
+
   val data: t -> Ojs.t (* message *) [@@js.get]
   val origin: t -> string (* message *) [@@js.get]
+
+  val state: t -> Ojs.t (* popstate *) [@@js.get]
 end
 
 module Rect : sig
@@ -403,6 +435,7 @@ module Style : sig
   val set_position: t -> string -> unit [@@js.set]
   val set_cursor: t -> string -> unit [@@js.set]
   val set_display: t -> string -> unit [@@js.set]
+  val set_visibility: t -> string -> unit [@@js.set]
 
   val get: t -> string -> string
   [@@js.custom
@@ -441,6 +474,21 @@ module Element : sig
   [@@js.custom
     let null = t_of_js Ojs.null
     ]
+
+  val id: t -> string [@@js.get]
+  val set_id: t -> string -> unit [@@js.set]
+
+  type node_type =
+    | ELEMENT_NODE [@js 1]
+    | TEXT_NODE [@js 3]
+    | PROCESSING_INSTRUCTION_NODE [@js 7]
+    | COMMENT_NODE [@js 8]
+    | DOCUMENT_NODE [@js 9]
+    | DOCUMENT_TYPE_NODE [@js 10]
+    | DOCUMENT_FRAGMENT_NODE [@js 11]
+  [@@js.enum]
+
+  val node_type: t (* T *) -> node_type [@@js.get]
 
   val clone_node: t (* T *) -> bool -> t [@@js.call]
   val contains: t (* T *) -> t (* T *) -> bool [@@js.call]
@@ -506,8 +554,11 @@ module Element : sig
 
   val value: t (* <input> *) -> string [@@js.get]
   val set_value: t (* <input> *) -> string -> unit [@@js.set]
-  val select: t (* <input> <textarea *) -> unit [@@js.call]
+  val select: t (* <input> <textarea> *) -> unit [@@js.call]
   val files: t (* <input> *) -> File.t list [@@js.get]
+  val submit: t (* <form> *) -> unit [@@js.call]
+
+  val show_picker: t -> unit [@@js.call]
 
   val selected_index: t (* <select> *) -> int [@@js.get]
   val checked: t (* <input> *) -> bool [@@js.get]
@@ -521,6 +572,7 @@ module Element : sig
   val dispatch_event: t (* T *) -> Event.t -> bool [@@js.call]
   val style: t (* T *) -> Style.t [@@js.get]
   val inner_HTML: t -> string [@@js.get]
+  val outer_HTML: t -> string [@@js.get]
   val set_inner_HTML: t -> string -> unit [@@js.set]
   val set_text_content: t -> string -> unit [@@js.set]
   val set_class_name: t -> string -> unit [@@js.set]
@@ -538,7 +590,6 @@ module Element : sig
   val offset_left: t -> int [@@js.get]
   val offset_width: t -> int [@@js.get]
   val offset_height: t -> int [@@js.get]
-
 
   val scroll_top: t -> float [@@js.get]
   val set_scroll_top: t -> float -> unit [@@js.set]
@@ -650,6 +701,8 @@ module Location: sig
   val search: t -> string [@@js.get]
   val set_search: t -> string -> unit [@@js.set]
 
+  val origin: t -> string [@@js.get]
+
   val assign: t -> string -> unit [@@js.call]
   val reload: t -> ?force:bool -> unit -> unit [@@js.call]
   val replace: t -> string -> unit [@@js.call]
@@ -753,12 +806,12 @@ module XHR: sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
 
-
   val create: unit -> t [@@js.new "XMLHttpRequest"]
   val open_: t -> string -> string -> unit [@@js.call]
   val send: t -> Ojs.t -> unit [@@js.call]
   val set_request_header: t -> string -> string -> unit [@@js.call]
   val get_response_header: t -> string -> string option [@@js.call]
+  val get_all_response_headers: t -> string [@@js.call]
   val set_response_type: t -> string -> unit [@@js.set]
   val override_mime_type: t -> string -> unit [@@js.call]
   val set_with_credentials: t -> bool -> unit (* starting from IE10 *) [@@js.set]
@@ -881,39 +934,19 @@ module Console : sig
 end
 val console: Console.t [@@js.global]
 
-module ArrayBuffer : sig
-  type t
+module Uint8Array : sig
+  type t = private ArrayBuffer.t
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
-  val create: int -> t [@@js.new "ArrayBuffer"]
-end
 
-module Uint8Array : sig
-  type t
   val from_buffer: ArrayBuffer.t -> t [@@js.new "Uint8Array"]
   val create: int -> t [@@js.new "Uint8Array"]
   val set: t -> int array -> int -> unit [@@js.call]
-
+  val length: t -> int [@@js.get]
   val random: t -> unit [@@js.global "window.crypto.getRandomValues"]
   val to_array: t -> int array [@@js.cast]
   val get: t -> int -> int [@@js.custom let get a i = Ojs.int_of_js (Ojs.array_get (t_to_js a) i)]
-end
-
-module Blob : sig
-  type options
-  val options: ?type_:string -> ?endings:string -> unit -> options [@@js.builder]
-
-  type t
-  val t_of_js: Ojs.t -> t
-  val t_to_js: t -> Ojs.t
-
-  val create: ([`ArrayBuffer of ArrayBuffer.t | `Other of Ojs.t] [@js.union]) list -> ?options:options -> unit -> t [@@js.new "Blob"]
-  val mime_type: t -> string [@@js.get "type"]
-  val text: t -> unit -> string Promise.t [@@js.call]
-
-  type file_options
-  val file_options: ?type_:string -> ?last_modified:float -> unit -> file_options [@@js.builder]
-  val to_file: t array -> string -> file_options -> File.t [@@js.new "File"]
+  val from: Ojs.t (* arraylike *) -> (Ojs.t -> int) (* map *) -> t [@@js.global "Uint8Array.from"]
 end
 
 module ObjectURL : sig
@@ -921,7 +954,6 @@ module ObjectURL : sig
   val of_file: File.t -> string [@@js.global "URL.createObjectURL"]
   val revoke: string -> unit [@@js.global "URL.revokeObjectURL"]
 end
-
 
 module Svg : sig
   module Length : sig
@@ -942,64 +974,6 @@ module Svg : sig
     val anim_val: t -> Length.t [@@js.get]
     val base_val: t -> Length.t [@@js.get]
   end
-
-  type path_seg_type =
-    | Unknown [@js 0]
-    | Close_path [@js 1]
-    | Moveto_abs [@js 2]
-    | Moveto_rel [@js 3]
-    | Lineto_abs [@js 4]
-    | Lineto_rel [@js 5]
-    | Curveto_cubic_abs [@js 6]
-    | Curveto_cubic_rel [@js 7]
-    | Curveto_quadratic_abs [@js 8]
-    | Curveto_quadratic_rel [@js 9]
-  [@@js.enum]
-
-  module PathSeg : sig
-    type t
-    val t_of_js: Ojs.t -> t
-    val t_to_js: t -> Ojs.t
-
-    val x: t -> float [@@js.get]
-    val y: t -> float [@@js.get]
-    val x1: t -> float [@@js.get]
-    val y1: t -> float [@@js.get]
-    val x2: t -> float [@@js.get]
-    val y2: t -> float [@@js.get]
-
-    val path_seg_type: t -> path_seg_type [@@js.get]
-    val path_seg_type_as_letter: t -> string [@@js.get]
-  end
-
-  module PathSegList : sig
-    type t
-    val t_of_js: Ojs.t -> t
-    val t_to_js: t -> Ojs.t
-    val number_of_items: t -> int [@@js.get]
-    val get_item: t -> int -> PathSeg.t [@@js.call]
-    val insert_item_before: t -> PathSeg.t -> int -> unit [@@js.call]
-    val replace_item: t -> PathSeg.t -> int -> unit [@@js.call]
-    val remove_item: t -> int -> unit [@@js.call]
-    val append_item: t -> PathSeg.t -> unit [@@js.call]
-  end
-
-  module PathElement: sig
-    type t
-    val t_of_js: Ojs.t -> t
-    val t_to_js: t -> Ojs.t
-
-    val path_seg_list: t -> PathSegList.t [@@js.get]
-    val normalized_path_seg_list: t -> PathSegList.t [@@js.get]
-    val animated_path_seg_list: t -> PathSegList.t [@@js.get]
-    val animated_normalized_path_seg_list: t -> PathSegList.t [@@js.get]
-
-    val create_close_path: t -> unit -> PathSeg.t [@@js.call "createSVGPathSegClosePath"]
-    val create_moveto_abs: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegMovetoAbs"]
-    val create_moveto_rel: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegMovetoRel"]
-    val create_lineto_abs: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegLinetoAbs"]
-    val create_lineto_rel: t -> float -> float -> PathSeg.t [@@js.call "createSVGPathSegLinetoRel"]
-  end
 end
 
 module Base64: sig
@@ -1015,3 +989,134 @@ module FetchResponse: sig
 end
 
 val fetch: string -> FetchResponse.t Promise.t [@@js.global "fetch"]
+
+module TextDecoder: sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  (* See encoding list at
+     https://developer.mozilla.org/en-US/docs/Web/API/Encoding_API/Encodings *)
+  val create: ?label:string -> unit -> t [@@js.new "TextDecoder"]
+  val decode: t -> ArrayBuffer.t -> string [@@js.call]
+end
+
+module Navigator: sig
+  module AuthenticatorAttestationResponse: sig
+    type t = Ojs.t
+    val t_of_js: Ojs.t -> t
+    val t_to_js: t -> Ojs.t
+
+    val client_data_json: t -> ArrayBuffer.t [@@js.get "clientDataJSON"]
+    val attestation_object: t -> ArrayBuffer.t [@@js.get]
+  end
+
+  module AuthenticatorAssertionResponse: sig
+    type t = Ojs.t
+    val t_of_js: Ojs.t -> t
+    val t_to_js: t -> Ojs.t
+
+    val client_data_json: t -> ArrayBuffer.t [@@js.get "clientDataJSON"]
+    val authenticator_data: t -> ArrayBuffer.t [@@js.get]
+    val signature: t -> ArrayBuffer.t [@@js.get]
+    val user_handle: t -> ArrayBuffer.t [@@js.get]
+  end
+
+  module PublicKeyCredential: sig
+    type t = Ojs.t
+    val t_of_js: Ojs.t -> t
+    val t_to_js: t -> Ojs.t
+
+    val type_: t -> string [@@js.get]
+    val id: t -> string [@@js.get]
+    val raw_id: t -> ArrayBuffer.t [@@js.get]
+    val response: t -> Ojs.t [@@js.get]
+  end
+
+  module Credential: sig
+    type t = Ojs.t
+    val t_of_js: Ojs.t -> t
+    val t_to_js: t -> Ojs.t
+
+    type rp_options
+    val rp_options:
+      ?id:string ->
+      ?name:string ->
+      unit ->
+      rp_options [@@js.builder]
+
+    type user_options
+    val user_options:
+      ?id: ArrayBuffer.t ->
+      ?name:string ->
+      ?display_name:string ->
+      unit ->
+      user_options [@@js.builder]
+
+    type key_param
+    val key_param:
+      ?type_:string ->
+      ?alg:int ->
+      unit ->
+      key_param [@@js.builder]
+
+    type authenticator_options
+    val authenticator_options:
+      ?authenticator_attachment:string ->
+      ?resident_key:string ->
+      ?require_resident_key:bool ->
+      ?user_verification:string ->
+      unit ->
+      authenticator_options [@@js.builder]
+
+    type public_key_options
+    val public_key_options:
+      ?rp:rp_options ->
+      ?user:user_options ->
+      ?challenge:ArrayBuffer.t ->
+      ?pub_key_cred_params:key_param list ->
+      ?timeout:int ->
+      ?exclude_credentials: Ojs.t list ->
+      ?authenticator_selection:authenticator_options ->
+      ?attestation:string ->
+      unit ->
+      public_key_options [@@js.builder]
+
+    type create_options
+    val create_options:
+      ?public_key:public_key_options ->
+      unit ->
+      create_options [@@js.builder]
+
+    val create: create_options -> Ojs.t (* Credential *) Promise.t [@@js.global "navigator.credentials.create"]
+
+    type credential_descriptor
+    val credential_descriptor:
+      ?type_:string ->
+      ?id:ArrayBuffer.t ->
+      ?transports:Ojs.t ->
+      unit ->
+      credential_descriptor [@@js.builder]
+
+    type get_public_key_options
+    val get_public_key_options:
+      ?challenge:ArrayBuffer.t ->
+      ?timeout:int ->
+      ?rp_id:string ->
+      ?allow_credentials:credential_descriptor list ->
+      ?user_verification:string ->
+      ?extensions:Ojs.t ->
+      unit ->
+      get_public_key_options [@@js.builder]
+
+    type get_options
+    val get_options:
+      ?public_key:get_public_key_options ->
+      unit ->
+      get_options [@@js.builder]
+
+    val get_options_to_js: get_options -> Ojs.t
+
+    val get: get_options -> Ojs.t (* Credential *) Promise.t [@@js.global "navigator.credentials.get"]
+  end
+end

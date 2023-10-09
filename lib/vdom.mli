@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2022 LexiFi                                                                    *)
+(* Copyright (C) 2000-2023 LexiFi                                                                    *)
 
 
 
@@ -49,6 +49,101 @@ module Cmd: sig
   val bind: 'a t -> ('a -> 'msg t) -> 'msg t
 end
 
+(* {2 Decoders}*)
+
+type js_object = .. (* forward declaration in Vdom_blit, to avoid depending to DOM API here *)
+
+module Decoder: sig
+
+  type arg_value =
+    | StringArg of string
+    | BoolArg of bool
+    | FloatArg of float
+    | IntArg of int
+
+  type _ t =
+    | Field : string * 'msg t -> 'msg t
+    | Method : string * arg_value list * 'msg t -> 'msg t
+    | Bind : ('a -> 'msg t) * 'a t -> 'msg t
+    | Const : 'msg -> 'msg t
+    | Factor : ('a -> 'msg t) -> ('a -> ('msg, string) Result.t) t
+    | String : string t
+    | Int : int t
+    | Float : float t
+    | Bool : bool t
+    | Object : js_object t
+    | List : 'a t -> 'a list t
+    | Fail : string -> 'msg t
+    | Try : 'a t -> 'a option t
+    (** The type of JavaScript object "structural" parsers.
+         It allows to access the fields of JS objects and cast them to OCaml values. *)
+
+  val field: string -> 'a t -> 'a t
+  (** [field s d] accesses field [s] and applies decoder [d] to it. Deeper sub-fields can also be accessed by giving the full list of field names separated by dots. *)
+
+  val method_: string -> arg_value list -> 'a t -> 'a t
+  (** [method_ s l q] calls method [s] with arguments [l] and applies [d] to the result. *)
+
+  val app: ('a -> 'b) t -> 'a t -> 'b t
+  (** Monadic applicative operation *)
+
+  val bind: ('a -> 'b t) -> 'a t -> 'b t
+  (** Monadic binding operation *)
+
+  val const: 'a -> 'a t
+  (** [const x] is a decoder that always returns [x] on any JS object *)
+
+  val return: 'a -> 'a t
+  (** [return x] is a decoder that always returns [x] on any JS object *)
+
+  val factor: ('a -> 'b t) -> ('a -> ('b, string) Result.t) t
+  (** [factor f] creates a decoder which returns a function which finishes applying the decoder returned by [f] with a given argument *)
+
+  val map: ('a -> 'b) -> 'a t -> 'b t
+  (** Monadic mapping operation *)
+
+  val map2: ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+  (** Maps the results of 2 decoders *)
+
+  val pair: 'a t -> 'b t -> ('a * 'b) t
+  (** Combine the results of 2 decoders to a pair *)
+
+  val fail: string -> 'a t
+  (** [fail msg] is a decoder which always fails with message [msg] *)
+
+  val try_: 'a t -> 'a option t
+  (** [try_ d] is a decoder which returns [None] if [d] fails *)
+
+  val string: string t
+  (** Decode a JS string to an OCaml string *)
+
+  val int: int t
+  (** Decode a JS number to an OCaml integer *)
+
+  val float: float t
+  (** Decode a JS number to an OCaml float *)
+
+  val bool: bool t
+  (** Decode a JS boolean to an OCaml boolean *)
+
+  val unit: unit t
+  (** This decoder always returns () *)
+
+  val object_ : js_object t
+  (** Decode a JS object to an OCaml representation *)
+
+  val list: 'a t -> 'a list t
+  (** [list d] decodes a JS array to an OCaml list, applying the decoder [d] to each element *)
+
+  val ( let* ): 'a t -> ('a -> 'b t) -> 'b t
+
+  val ( let+ ): 'a t -> ('a -> 'b) -> 'b t
+
+  val ( and+ ): 'a t -> 'b t -> ('a * 'b) t
+
+end
+
+
 (** {2 Custom elements} *)
 
 module Custom: sig
@@ -59,35 +154,16 @@ end
 
 (** {2 Properties and event handlers} *)
 
-type mouse_event = {x: int; y: int; page_x: float; page_y: float; element_x: float; element_y: float; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
+type mouse_event = {x: float; y: float; page_x: float; page_y: float; element_x: float Lazy.t; element_y: float Lazy.t; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
 
 type paste_event = {text: string; selection_start: int; selection_end: int}
 
-type 'msg event_handler =
-  | MouseDown of (mouse_event -> 'msg)
-  | MouseDownCancel of (mouse_event -> 'msg option)
-  | MouseUp of (mouse_event -> 'msg)
-  | Click of (mouse_event -> 'msg)
-  | ClickCancel of (mouse_event -> 'msg option)
-  | DblClick of (mouse_event -> 'msg)
-  | Focus of 'msg
-  | Blur of 'msg
-  | Input of (string -> 'msg)
-  | Change of (string -> 'msg)
-  | ChangeIndex of (int -> 'msg)
-  | ChangeChecked of (bool -> 'msg)
-  | MouseMove of (mouse_event -> 'msg)
-  | MouseEnter of (mouse_event -> 'msg)
-  | MouseLeave of (mouse_event -> 'msg)
-  | MouseOver of (mouse_event -> 'msg)
-  | KeyDown of (key_event -> 'msg)
-  | KeyDownCancel of (key_event -> 'msg option)
-  | KeyUp of (key_event -> 'msg)
-  | KeyUpCancel of (key_event -> 'msg option)
-  | ContextMenu of (mouse_event -> 'msg)
-  | Paste of (paste_event -> 'msg option)
+type 'msg msg_options = {msg: 'msg option; stop_propagation: bool; prevent_default: bool}
+
+type +'msg event_handler =
+  | Decoder : { event_type : string; decoder : 'a msg_options Decoder.t; map : 'a option -> 'msg option } -> 'msg event_handler
   | CustomEvent of (Custom.event -> 'msg option)
 
 type prop_val =
@@ -107,36 +183,40 @@ type 'msg attribute =
 
 (** {3 Event handlers} *)
 
-val onmousedown: (mouse_event -> 'msg) -> 'msg attribute
-val onmousedown_cancel: (mouse_event -> 'msg option) -> 'msg attribute
-val onmouseup: (mouse_event -> 'msg) -> 'msg attribute
-val onclick: (mouse_event -> 'msg) -> 'msg attribute
-val onclick_cancel: (mouse_event -> 'msg option) -> 'msg attribute
-val ondblclick: (mouse_event -> 'msg) -> 'msg attribute
-val oncontextmenu: (mouse_event -> 'msg) -> 'msg attribute
-val onfocus: 'msg -> 'msg attribute
-val onblur: 'msg -> 'msg attribute
-val oninput: (string -> 'msg) -> 'msg attribute
+val on: ?prevent_default:unit -> ?stop_propagation:unit -> string -> 'msg option Decoder.t -> 'msg attribute
+val on_with_options: string -> 'msg msg_options Decoder.t -> 'msg attribute
+val on_js: ?prevent_default:unit -> ?stop_propagation:unit -> string -> (js_object -> 'msg option) -> 'msg attribute
+val on_js_with_options: string -> (js_object -> 'msg msg_options) -> 'msg attribute
+val onmousedown: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onmousedown_cancel: ?stop_propagation:unit -> (mouse_event -> 'msg option) -> 'msg attribute
+val onmouseup: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onclick: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onclick_cancel: ?stop_propagation:unit -> (mouse_event -> 'msg option) -> 'msg attribute
+val ondblclick: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val oncontextmenu: ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onfocus: ?prevent_default:unit -> ?stop_propagation:unit -> 'msg -> 'msg attribute
+val onblur: ?prevent_default:unit -> ?stop_propagation:unit -> 'msg -> 'msg attribute
+val oninput: ?prevent_default:unit -> ?stop_propagation:unit -> (string -> 'msg) -> 'msg attribute
 (** Pass the [value] property of the event target. *)
 
-val onchange_checked: (bool -> 'msg) -> 'msg attribute
+val onchange_checked: ?prevent_default:unit -> ?stop_propagation:unit -> (bool -> 'msg) -> 'msg attribute
 (** Pass the [checked] property of the event targer. *)
 
-val onchange: (string -> 'msg) -> 'msg attribute
+val onchange: ?prevent_default:unit -> ?stop_propagation:unit -> (string -> 'msg) -> 'msg attribute
 (** Pass the [value] property of the event target. *)
 
-val onchange_index: (int -> 'msg) -> 'msg attribute
+val onchange_index: ?prevent_default:unit -> ?stop_propagation:unit -> (int -> 'msg) -> 'msg attribute
 (** Pass the [selected_index] property of the event target. *)
 
-val onmousemove: (mouse_event -> 'msg) -> 'msg attribute
-val onmouseenter: (mouse_event -> 'msg) -> 'msg attribute
-val onmouseleave: (mouse_event -> 'msg) -> 'msg attribute
-val onmouseover: (mouse_event -> 'msg) -> 'msg attribute
-val onkeydown: (key_event -> 'msg) -> 'msg attribute
-val onkeydown_cancel: (key_event -> 'msg option) -> 'msg attribute
-val onkeyup: (key_event -> 'msg) -> 'msg attribute
-val onkeyup_cancel: (key_event -> 'msg option) -> 'msg attribute
-val onpaste: (paste_event -> 'msg option) -> 'msg attribute
+val onmousemove: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onmouseenter: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onmouseleave: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onmouseover: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
+val onkeydown: ?prevent_default:unit -> ?stop_propagation:unit -> (key_event -> 'msg) -> 'msg attribute
+val onkeydown_cancel: ?stop_propagation:unit -> (key_event -> 'msg option) -> 'msg attribute
+val onkeyup: ?prevent_default:unit -> ?stop_propagation:unit -> (key_event -> 'msg) -> 'msg attribute
+val onkeyup_cancel: ?stop_propagation:unit -> (key_event -> 'msg option) -> 'msg attribute
+val onpaste: ?prevent_default:unit -> ?stop_propagation:unit -> (paste_event -> 'msg option) -> 'msg attribute
 val oncustomevent: (Custom.event -> 'msg option) -> 'msg attribute
 
 
@@ -195,16 +275,10 @@ val select: 'msg attribute
 (** When this pseudo-attribute is first applied to an input or textarea element,
     select the content. *)
 
-(** {3 Events} *)
+val autosubmit: 'msg attribute
+(** When this pseudo_attribute is first applied to a form element,
+    it will be submitted automatically. *)
 
-type event = {ev: 'msg. ('msg event_handler -> 'msg option)}
-
-val blur_event: event
-val input_event: string -> event
-val checked_event: bool -> event
-val change_event: string -> event
-val change_index_event: int -> event
-val custom_event: Custom.event -> event
 
 (** {2 VDOM} *)
 
@@ -214,6 +288,11 @@ type +'msg vdom =
       {
         key: string;
         txt: string;
+      }
+  | Fragment of
+      {
+        key: string;
+        children: 'msg vdom list;
       }
   | Element of
       {
@@ -240,6 +319,7 @@ type +'msg vdom =
         key: string;
         elt: Custom.t;
         attributes: 'msg attribute list;
+        propagate_events: bool;
       }
 
 (** {3 Generic VDOM constructors} *)
@@ -254,6 +334,9 @@ val svg_elt: string -> ('msg, 'msg vdom list -> 'msg vdom) elt_gen
 
 val text: ?key:string -> string -> 'msg vdom
 (** A text node. *)
+
+val fragment: ?key:string -> 'msg vdom list -> 'msg vdom
+(** A fragment node (not appearing in the dom). *)
 
 val map_attr: ('msg attribute list -> 'msg attribute list) -> 'msg vdom -> 'msg vdom
 (** Map attributes of a vdom element *)
@@ -276,7 +359,7 @@ val memo: ?key:string -> ('a -> 'msg vdom) -> 'a -> 'msg vdom
     [TODO: n-ary versions].
 *)
 
-val custom: ?key:string -> ?a:'msg attribute list -> Custom.t -> 'msg vdom
+val custom: ?key:string -> ?a:'msg attribute list -> ?propagate_events:unit -> Custom.t -> 'msg vdom
 (** A custom kind of node.  Usually not used directly. *)
 
 (** {3 Common elements} *)

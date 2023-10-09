@@ -6,5 +6,5 @@
 (rule (copy counters.bc.js counters.js))
 
 (alias
- (name DEFAULT)
+ (name all)
  (deps counters.js counters.html))

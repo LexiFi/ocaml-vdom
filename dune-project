@@ -8,7 +8,10 @@
 
 (maintainers "Alain Frisch <alain.frisch@lexifi.com>")
 
-(authors "Alain Frisch <alain.frisch@lexifi.com>")
+(authors
+ "Alain Frisch <alain.frisch@lexifi.com>"
+ "Marc Lasson <marc.lasson@lexifi.com>"
+ "Aurélien Saue <aurelien.saue@lexifi.com>")
 
 (source
  (github LexiFi/ocaml-vdom))
@@ -23,4 +26,5 @@
  (depends
   (gen_js_api (>= 1.0.6))
   js_of_ocaml-compiler
-  odoc))
+  odoc)
+ (conflicts (ocaml-vdom (<> transition))))

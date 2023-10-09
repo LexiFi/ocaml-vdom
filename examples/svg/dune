@@ -6,5 +6,5 @@
 (rule (copy svg.bc.js svg.js))
 
 (alias
- (name DEFAULT)
+ (name all)
  (deps svg.js svg.html))

@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright 2016 by LexiFi.                                                                         *)
+(* Copyright (C) 2000-2023 LexiFi                                                                    *)
 
 open Vdom
 

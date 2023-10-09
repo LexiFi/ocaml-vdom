@@ -14,7 +14,7 @@
  (name vdom_js)
  (public_name vdom)
  (synopsis "Virtual Dom")
- (libraries gen_js_api vdom_base)
+ (libraries ojs vdom_base)
  (wrapped false)
  (modes byte)
  (modules vdom_blit js_browser))

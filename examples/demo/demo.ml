@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright 2016 by LexiFi.                                                                         *)
+(* Copyright (C) 2000-2023 LexiFi                                                                    *)
 
 open Js_browser
 open Vdom
@@ -224,9 +224,9 @@ end
 
 module MouseMove = struct
 
-  type evt = {x: int; y: int; buttons: int}
+  type evt = {x: float; y: float; buttons: int}
 
-  let init = return {x = 0; y = 0; buttons = 0}
+  let init = return {x = 0.; y = 0.; buttons = 0}
 
   let view ({x; y; buttons} : evt) =
     elt "span"
@@ -235,7 +235,7 @@ module MouseMove = struct
         style "background-color" "red"
       ]
       [
-        text (Printf.sprintf "x = %i; y = %i; buttons = %i" x y buttons)
+        text (Printf.sprintf "x = %f; y = %f; buttons = %i" x y buttons)
       ]
 
   let update _ evt = return evt
@@ -375,7 +375,7 @@ module Issue18_propagation = struct
         div ~a:[onclick (fun _ -> Click "outer"); class_ "outer"]
           [
             div ~a:[ class_ "inner"] [text "inside the inner div"];
-            div ~a:[ class_ "inner"; onclick (fun _ -> Click "inner")]
+            div ~a:[ class_ "inner"; onclick ~stop_propagation:() (fun _ -> Click "inner")]
               [text "inner div with own click handler"];
             text "outside the inner div";
           ]

@@ -6,5 +6,5 @@
 (rule (copy date.bc.js date.js))
 
 (alias
- (name DEFAULT)
+ (name all)
  (deps date.js date.html))

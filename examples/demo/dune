@@ -6,5 +6,5 @@
 (rule (copy demo.bc.js demo.js))
 
 (alias
- (name DEFAULT)
+ (name all)
  (deps demo.js demo.html))
