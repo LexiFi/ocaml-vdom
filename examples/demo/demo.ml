@@ -375,7 +375,7 @@ module Issue18_propagation = struct
         div ~a:[onclick (fun _ -> Click "outer"); class_ "outer"]
           [
             div ~a:[ class_ "inner"] [text "inside the inner div"];
-            div ~a:[ class_ "inner"; onclick (fun _ -> Click "inner")]
+            div ~a:[ class_ "inner"; onclick ~stop_propagation:() (fun _ -> Click "inner")]
               [text "inner div with own click handler"];
             text "outside the inner div";
           ]
