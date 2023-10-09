@@ -26,4 +26,5 @@
  (depends
   (gen_js_api (>= 1.0.6))
   js_of_ocaml-compiler
-  odoc))
+  odoc)
+ (conflicts (ocaml-vdom (<> transition))))

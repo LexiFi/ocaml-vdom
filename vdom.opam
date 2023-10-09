@@ -20,6 +20,9 @@ depends: [
   "js_of_ocaml-compiler"
   "odoc"
 ]
+conflicts: [
+  "ocaml-vdom" {!= "transition"}
+]
 build: [
   ["dune" "subst"] {dev}
   [
