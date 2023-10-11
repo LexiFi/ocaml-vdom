@@ -23,8 +23,11 @@
   "This package contains:
 - OCaml bindings to DOM and other client-side Javascript APIs (using gen_js_api).
 - An implementation of the Elm architecture, where the UI is specified as a functional \"view\" on the current state.")
+ (license MIT)
  (depends
-  (gen_js_api (>= 1.0.6))
+  (ocaml (>= 4.10))
+  (gen_js_api (>= 1.0.7))
+  ojs
   js_of_ocaml-compiler
   odoc)
  (conflicts (ocaml-vdom (<> transition))))
