@@ -12,11 +12,14 @@ authors: [
   "Marc Lasson <marc.lasson@lexifi.com>"
   "Aurélien Saue <aurelien.saue@lexifi.com>"
 ]
+license: "MIT"
 homepage: "https://github.com/LexiFi/ocaml-vdom"
 bug-reports: "https://github.com/LexiFi/ocaml-vdom/issues"
 depends: [
   "dune" {>= "3.0"}
-  "gen_js_api" {>= "1.0.6"}
+  "ocaml" {>= "4.10"}
+  "gen_js_api" {>= "1.0.7"}
+  "ojs"
   "js_of_ocaml-compiler"
   "odoc"
 ]
