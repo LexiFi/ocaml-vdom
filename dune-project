@@ -28,6 +28,5 @@
   (ocaml (>= 4.10))
   (gen_js_api (>= 1.0.7))
   ojs
-  js_of_ocaml-compiler
-  odoc)
+  js_of_ocaml-compiler)
  (conflicts (ocaml-vdom (<> transition))))
