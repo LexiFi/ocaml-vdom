@@ -593,9 +593,14 @@ module Element : sig
 
   val scroll_top: t -> float [@@js.get]
   val set_scroll_top: t -> float -> unit [@@js.set]
+  val scroll_left: t -> float [@@js.get]
+  val set_scroll_left: t -> float -> unit [@@js.set]
   val scroll_into_view: t -> bool -> unit[@@js.call]
   val focus: t -> unit [@@js.call]
   val blur: t -> unit [@@js.call]
+
+  type focus_options = { prevent_scroll: bool }
+  val focus_options: t -> focus_options -> unit [@@js.call "focus"]
 
   type scroll_into_view_options = { behavior : behavior option }
   and behavior =
@@ -624,6 +629,17 @@ module Element : sig
   val class_list: t -> ClassList.t [@@js.get]
 end
 
+module Range : sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val set_start: t ->  Element.t -> int -> unit [@@js.call]
+  val set_end: t -> Element.t -> int -> unit [@@js.call]
+  val get_bounding_client_rect: t -> Rect.t [@@js.call]
+end
+
+
 module Document: sig
   type t
   val t_of_js: Ojs.t -> t
@@ -633,6 +649,7 @@ module Document: sig
   val create_element_ns: t -> string -> string -> Element.t [@@js.call "createElementNS"]
   val create_text_node: t -> string -> Element.t [@@js.call]
   val create_event: t -> string -> Event.t [@@js.call]
+  val create_range: t -> Range.t [@@js.call]
 
   val get_element_by_id: t -> string -> Element.t option [@@js.call]
   val get_elements_by_class_name: t -> string -> Element.t array [@@js.call]

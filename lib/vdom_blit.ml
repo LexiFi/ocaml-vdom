@@ -394,12 +394,10 @@ let custom_attribute prop =
   | "autofocus" ->
       Some
         (fun dom v ->
-           let do_focus =
-             match v with
-             | String "if-visible" -> is_visible dom
-             | _ -> true
-           in
-           if do_focus then Element.focus dom
+           match v with
+           | String "if-visible" -> if is_visible dom then Element.focus dom
+           | String "prevent-scroll" -> Element.focus_options dom {prevent_scroll = true}
+           | _ -> Element.focus dom
         )
 
   | "select" ->
@@ -601,7 +599,15 @@ let sync_attributes ctx ns dom a1 a2 =
   let props = function Property (k, v) -> Some (k, v) | Style _ | Handler _ | Attribute _ -> None in
   let set k v =
     match k, v with
-    | "value", String s when s = Element.value dom -> ()
+    | "value", String s ->
+        if Element.value dom <> s then begin
+          Element.set_value dom s;
+          List.iter (function
+              | (Property (("selectionStart" | "selectionEnd") as prop, v)) ->
+                  Ojs.set_prop_ascii (Element.t_to_js dom) prop (eval_prop v)
+              | _ -> ()
+            ) a2
+        end
     | _ ->
         if not (apply_special_prop ns dom k v) then
           if not (apply_effect_prop dom k v) then
