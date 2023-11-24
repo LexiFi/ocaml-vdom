@@ -263,6 +263,7 @@ let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x
 let autofocus_if_visible = str_prop "autofocus" "if-visible"
+let autofocus_prevent_scroll = str_prop "autofocus" "prevent-scroll"
 let autosubmit = bool_prop "autosubmit" true
 let select = bool_prop "select" true
 

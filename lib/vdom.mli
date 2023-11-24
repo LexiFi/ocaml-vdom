@@ -266,6 +266,10 @@ val autofocus_if_visible: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the
     element gets focused if the element is visible in the viewport. *)
 
+val autofocus_prevent_scroll: 'msg attribute
+(** When this pseudo-attribute is first applied to an element, the
+    element gets focused, but the browser does not scroll to show the element. *)
+
 val autofocus_counter: int -> 'msg attribute
 (** When this pseudo-attribute is first applied to an element, or applied
     with a different counter as the previous time, the
