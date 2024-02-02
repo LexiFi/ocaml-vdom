@@ -220,7 +220,7 @@ About
 -----
 
 This project has been created by LexiFi initially for its internal
-use. It has bees used in production since 2016 but no commitment is made on
+use. It has been used in production since 2016 but no commitment is made on
 the stability of its interface. So please let us know if you consider
 using it!
 
