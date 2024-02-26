@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2023 LexiFi                                                                    *)
+(* Copyright (C) 2000-2024 LexiFi                                                                    *)
 
 
 module Cmd = struct
