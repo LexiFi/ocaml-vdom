@@ -328,7 +328,7 @@ type +'msg vdom =
 
 (** {3 Generic VDOM constructors} *)
 
-type ('msg, 'res) elt_gen = ?key:string -> ?a:'msg attribute list ->  'res
+type ('msg, 'res) elt_gen = ?key:string -> ?a:'msg attribute list -> 'res
 
 val elt: ?ns:string -> string -> ('msg, 'msg vdom list -> 'msg vdom) elt_gen
 (** A generic element. *)
