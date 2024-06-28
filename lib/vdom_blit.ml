@@ -691,8 +691,8 @@ let insert_before parent o n =
     Printf.printf "insert_before(%s, %s, %s)\n" (print_element parent) (print_element o) (print_element n);
   Element.insert_before parent o n
 
-let rec sync : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> old_msg ctrl -> msg vdom -> msg ctrl =
-  fun ctx parent prev_move next old vdom ->
+let rec sync : type old_msg msg. ctx -> Element.t -> Element.t -> old_msg ctrl -> msg vdom -> msg ctrl =
+  fun ctx parent next old vdom ->
 
   match old, vdom with
   | _ when (vdom : msg vdom) == (Obj.magic (get_vdom old : old_msg vdom)) ->
@@ -703,7 +703,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> old_ms
       BText {vdom; dom}
 
   | BMap {child = c1; _}, Map {f; child = c2; key = _} ->
-      let child = sync ctx parent prev_move next c1 c2 in
+      let child = sync ctx parent next c1 c2 in
       BMap {vdom; doms = get_doms child; child; f}
 
   | BMemo {child = c1; vdom = Memo {f = f1; arg = a1; key = _}; _}, Memo {f = f2; arg = a2; key = _} ->
@@ -711,7 +711,7 @@ let rec sync : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> old_ms
       if Obj.magic f1 == f2 && Obj.magic a1 == a2 then
         bmemo vdom (Obj.magic (c1 : old_msg ctrl) : msg ctrl)
       else
-        bmemo vdom (sync ctx parent prev_move next c1 (f2 a2))
+        bmemo vdom (sync ctx parent next c1 (f2 a2))
 
   | BCustom {vdom = Custom {key=key1; elt=arg1; attributes=a1; propagate_events = _}; propagate_events = _; elt; ns}, Custom {key=key2; elt=arg2; attributes=a2; propagate_events}
     when key1 = key2 && (arg1 == arg2 || elt.sync arg2) ->
@@ -719,12 +719,12 @@ let rec sync : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> old_ms
       BCustom {vdom; elt; ns; propagate_events}
 
   | BFragment {vdom = Fragment e1; children; _}, Fragment e2 when e1.key = e2.key ->
-      let children = sync_children ctx parent prev_move next children e2.children in
+      let children = sync_children ctx parent next children e2.children in
       let doms = List.concat_map get_doms children in
       BFragment {vdom; doms; children }
 
   | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns && e1.key = e2.key ->
-      let children = sync_children ctx dom false Element.null children e2.children in
+      let children = sync_children ctx dom Element.null children e2.children in
       (* synchronize properties & styles *)
       sync_attributes ctx e1.ns dom e1.attributes e2.attributes;
       BElement {vdom; dom; children}
@@ -745,8 +745,8 @@ let rec sync : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> old_ms
       dispose old;
       x
 
-and sync_children : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> old_msg ctrl list -> msg vdom list -> msg ctrl list =
-  fun ctx dom prev_move next old_children new_children ->
+and sync_children : type old_msg msg. ctx -> Element.t -> Element.t -> old_msg ctrl list -> msg vdom list -> msg ctrl list =
+  fun ctx dom next old_children new_children ->
   (* TODO:
      - add a fast-path to deal with prefixes and suffixes of old/new children with identical
        keys, avoiding a lot of allocations.
@@ -756,6 +756,7 @@ and sync_children : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> o
   (* synchronize children *)
 
   let old_children = Array.of_list old_children in
+  let moved_control = Array.map (fun c -> get_doms c = []) old_children in (* moved_control.(i) <=> all n in get_doms (old_controls.(i)) are not left sibling of next *)
   let new_children = Array.of_list new_children in
 
   (* for each key, get a list of indices in old_children *)
@@ -783,13 +784,19 @@ and sync_children : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> o
        if debug then Printf.printf "remove %i\n%!" i;
        let to_remove = old_children.(i) in
        List.iter (remove_child dom) (get_doms to_remove);
-       dispose to_remove
+       dispose to_remove;
+       moved_control.(i) <- true;
     )
     by_key;
 
+  let right_most_index = ref (Array.length old_children - 1) in
+  let refresh_right_most_index () =
+    while !right_most_index >= 0 && moved_control.(!right_most_index) do decr right_most_index done
+  in
+  refresh_right_most_index ();
+
   (* produce the new sequence, from right-to-left, creating and picking+syncinc nodes *)
   let ctrls = ref [] in
-  let prev_move = ref prev_move in
   let next = ref next in
   for i = Array.length new_children - 1 downto 0 do
     let idx = indices.(i) in
@@ -806,7 +813,8 @@ and sync_children : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> o
         (* note: the sync could lead to a DOM replace,
            following by a move below; in that case,
            one should just delete old + insert new *)
-        sync ctx dom !prev_move !next old_children.(idx) new_children.(i)
+        moved_control.(idx) <- true;
+        sync ctx dom !next old_children.(idx) new_children.(i)
       end
     in
     (* when next == null, insert at the end *)
@@ -822,30 +830,17 @@ and sync_children : type old_msg msg. ctx -> Element.t -> bool -> Element.t -> o
          algorithm to apply the desired permutation).
     *)
     let doms = get_doms c in
-    let rec last = function
-      | [] -> None
-      | [ c_dom ] -> Some c_dom
-      | _ :: tl -> last tl
-    in
-    match last doms with
-    | None -> ()
-    | Some right_most ->
-        begin
-          let move =
-            idx < 0 ||
-            ((if i = Array.length new_children - 1 then idx <> Array.length old_children - 1
-              else !prev_move || indices.(i + 1) <> idx + 1)
-             && Element.next_sibling right_most != !next)(* could avoid reading from the DOM... *)
-          in
-          if move then begin
-            if debug then Printf.printf "really move\n%!";
-            List.iter (fun c_dom ->
-                insert_before dom c_dom !next) doms;
-          end;
-          prev_move := move;
-          next := List.hd doms;
-        end;
-        ctrls := c :: !ctrls
+    if idx < 0 || !right_most_index <> idx then begin
+      if debug then Printf.printf "really move\n%!";
+      List.iter (fun c_dom ->
+          insert_before dom c_dom !next) doms;
+    end;
+    begin match doms with
+    | hd :: _ -> next := hd
+    | _ -> ()
+    end;
+    ctrls := c :: !ctrls;
+    refresh_right_most_index ();
   done;
   !ctrls
 
@@ -946,24 +941,19 @@ let run (type msg model) ?(env = empty) ?container
     let ty = Event.type_ evt in
     try
       let tgt = Element.t_of_js (Event.target evt) in
-      let apply_handler dom =
-        List.filter_map (fun attribute ->
-            match attribute with
-            | Handler (Decoder {event_type; decoder; map}) when ty = event_type ->
-                let {msg; prevent_default; stop_propagation} =
-                  BDecoder.decode_fail
-                    ~extra_fields:["currentTarget", Element.t_to_js dom]
-                    decoder
-                    (Event.t_to_js evt)
-                in
-                if prevent_default then Event.prevent_default evt;
-                if stop_propagation then Event.stop_propagation evt;
-                begin match map msg with
-                | None -> None
-                | Some msg ->
-                    Some (msg, stop_propagation)
-                end
-            | _ -> None)
+      let apply_handler dom mapper = function
+        | Handler (Decoder {event_type; decoder; map}) when ty = event_type ->
+            let {msg; prevent_default; stop_propagation} =
+              BDecoder.decode_fail
+                ~extra_fields:["currentTarget", Element.t_to_js dom]
+                decoder
+                (Event.t_to_js evt)
+            in
+            if prevent_default then Event.prevent_default evt;
+            if stop_propagation then Event.stop_propagation evt;
+            Option.iter (fun msg -> !process_fwd (mapper msg)) (map msg);
+            stop_propagation
+        | _ -> false
       in
       let rec propagate = function
         | Found {
@@ -973,12 +963,10 @@ let run (type msg model) ?(env = empty) ?container
             parent;
           } ->
             let stop_propagation =
-              List.fold_left
-                (fun stopped_propagation (msg, stop_propagation) ->
-                   !process_fwd (mapper msg);
-                   stopped_propagation || stop_propagation)
-                false
-                (apply_handler dom attributes)
+              List.fold_left (fun stopped_propagation attribute ->
+                  let stop_propagation = apply_handler dom mapper attribute in
+                  stopped_propagation || stop_propagation
+                ) false attributes
             in
             if not stop_propagation then propagate parent
         | _ ->
@@ -1043,7 +1031,7 @@ let run (type msg model) ?(env = empty) ?container
     | None -> ()
     | Some root ->
         pending_redraw := false;
-        let x = sync ctx container false Element.null root (view !model) in
+        let x = sync ctx container Element.null root (view !model) in
         current := Some x;
         flush ()
   in
