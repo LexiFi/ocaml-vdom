@@ -207,6 +207,7 @@ let onmousedown_cancel ?stop_propagation msg = onmouseevent_cancel ?stop_propaga
 let onmouseup ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "mouseup" msg
 let onclick ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "click" msg
 let onclick_cancel ?stop_propagation msg = onmouseevent_cancel ?stop_propagation "click" msg
+let onauxclick_cancel ?stop_propagation msg = onmouseevent_cancel ?stop_propagation "auxclick" msg
 let ondblclick ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "dblclick" msg
 let oncontextmenu ?stop_propagation msg = onmouseevent ~prevent_default:() ?stop_propagation "contextmenu" msg
 let onmousemove ?prevent_default ?stop_propagation msg = onmouseevent ?prevent_default ?stop_propagation "mousemove" msg

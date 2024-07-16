@@ -192,6 +192,7 @@ val onmousedown_cancel: ?stop_propagation:unit -> (mouse_event -> 'msg option) -
 val onmouseup: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
 val onclick: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
 val onclick_cancel: ?stop_propagation:unit -> (mouse_event -> 'msg option) -> 'msg attribute
+val onauxclick_cancel: ?stop_propagation:unit -> (mouse_event -> 'msg option) -> 'msg attribute
 val ondblclick: ?prevent_default:unit -> ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
 val oncontextmenu: ?stop_propagation:unit -> (mouse_event -> 'msg) -> 'msg attribute
 val onfocus: ?prevent_default:unit -> ?stop_propagation:unit -> 'msg -> 'msg attribute
