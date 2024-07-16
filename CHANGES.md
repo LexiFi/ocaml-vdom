@@ -1,6 +1,12 @@
 Next release
 ============
 
+- Synchronization algorithm purely based on the VDOM, avoid reading from the real DOM
+- `Vdom.autofocus_prevent_scroll`
+- `Vdom.onauxclick_cancel`
+- `Js_browser`: expose more of the DOM API
+
+
 0.3
 ===
 
