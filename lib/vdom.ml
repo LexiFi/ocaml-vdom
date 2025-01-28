@@ -261,6 +261,9 @@ let onwheel ?prevent_default ?stop_propagation msg = on ?prevent_default ?stop_p
 
 let oncustomevent msg = Handler (CustomEvent msg)
 
+let trim_end c s =
+  let l = String.length s in
+  if l > 0 && s.[l - 1] = c then String.sub s 0 (l - 1) else s
 
 let str_prop k v = Property (k, String v)
 let int_prop k v = Property (k, Int v)
@@ -269,7 +272,7 @@ let float_prop k v = Property (k, Float v)
 let style k v = Style (k, v)
 let attr k v = Attribute (k, v)
 let int_attr k v = Attribute (k, string_of_int v)
-let float_attr k v = Attribute (k, string_of_float v)
+let float_attr k v = Attribute (k, trim_end '.' (string_of_float v))
 let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x
@@ -393,13 +396,6 @@ let simple_app ~init ~update ~view () =
     ~view
     ()
 
-
-let trim_end c s =
-  let l = ref (String.length s) in
-  while !l > 0 && s.[!l - 1] = c do
-    decr l
-  done;
-  if !l < String.length s then String.sub s 0 !l else s
 
 let replace_char s c x =
   match String.index_opt s c with
