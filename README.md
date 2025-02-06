@@ -210,11 +210,9 @@ The resulting JavaScript file `myprog.bc.js` can be found in the `_build` direct
 Examples: [`Demo`](examples/demo/demo.ml), [`Counters`](examples/counters/counters.ml).
 
 Third-party examples:
-  `TodoMVC`
-    ([source](https://github.com/slegrand45/examples_ocaml_vdom/blob/master/todomvc/todomvc.ml),
-     [demo](https://slegrand45.github.io/examples_ocaml_vdom.site/todomvc/)),
-  [`With Eliom service`](https://github.com/slegrand45/examples_ocsigen/blob/master/eliom/with-ocaml-vdom/simple/mixvdomandeliom.eliom).
-
+- `TodoMVC` ([source](https://github.com/slegrand45/examples_ocaml_vdom/blob/master/todomvc/todomvc.ml), [demo](https://slegrand45.github.io/examples_ocaml_vdom.site/todomvc/))
+- [`With Eliom service`](https://github.com/slegrand45/examples_ocsigen/blob/master/eliom/with-ocaml-vdom/simple/mixvdomandeliom.eliom).
+- `camel-finder` ([source](https://github.com/edwinans/camel-finder), [demo](https://edwinans.github.io/camel-finder/))
 
 About
 -----
