@@ -70,6 +70,7 @@ module Date : sig
   val t_to_js: t -> Ojs.t
 
   val new_date: float -> t [@@js.new]
+  val new_from_day: int -> int -> int -> t [@@js.new]
   val now : unit -> float [@@js.global "Date.now"]
   val parse : string -> t [@@js.global "Date.parse"]
 
