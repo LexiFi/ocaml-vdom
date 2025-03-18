@@ -174,11 +174,14 @@ type prop_val =
   | Float of float
   | Bool of bool
 
+type eff_when = Add | Del
+
 type +'msg attribute =
   | Property of string * prop_val
   | Style of string * string
   | Handler of 'msg event_handler
   | Attribute of string * string
+  | Effect of eff_when * (string -> unit)
 
 let on_with_options event_type decoder =
   Handler (Decoder {event_type; decoder; map = Fun.id})
@@ -280,6 +283,10 @@ let autofocus_if_visible = str_prop "autofocus" "if-visible"
 let autofocus_prevent_scroll = str_prop "autofocus" "prevent-scroll"
 let autosubmit = bool_prop "autosubmit" true
 let select = bool_prop "select" true
+
+let effect w f = Effect (w, f)
+let onshow f = effect Add f
+let finalize f = effect Del f
 
 let class_ x = Property ("className", String x)
 let type_ x = Property ("type", String x)
@@ -438,6 +445,7 @@ let to_html vdom =
                | Handler _ -> attrs, styles
                | Attribute (name, value) ->
                    (name, value) :: attrs, styles
+               | Effect _ -> attrs, styles
             ) ([], []) attributes
         in
         let attrs =

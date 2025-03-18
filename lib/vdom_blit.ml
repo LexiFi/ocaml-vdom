@@ -314,10 +314,10 @@ end
 type 'msg ctrl =
   | BText of {vdom: 'msg vdom; dom: Element.t}
   | BFragment of {vdom: 'msg vdom; doms: Element.t list; children: 'msg ctrl list}
-  | BElement of {vdom: 'msg vdom; dom: Element.t; children: 'msg ctrl list}
+  | BElement of {vdom: 'msg vdom; dom: Element.t; children: 'msg ctrl list; finalizers: (string -> unit) list}
   | BMap: {vdom: 'msg vdom; doms: Element.t list; f: ('submsg -> 'msg); child: 'submsg ctrl} -> 'msg ctrl
   | BMemo: {vdom: 'msg vdom; doms: Element.t list; child: 'msg ctrl} -> 'msg ctrl
-  | BCustom of {vdom: 'msg vdom; elt: Custom.t; ns: string; propagate_events: bool}
+  | BCustom of {vdom: 'msg vdom; elt: Custom.t; ns: string; propagate_events: bool; finalizers: (string -> unit) list}
 
 let get_doms = function
   | BText x -> [x.dom]
@@ -474,24 +474,40 @@ type ctx =
     add_listener: string -> unit;
   }
 
+(* Apply the attributes to the [dom] element and returns the list of
+ * constructors and finalizers: *)
 let apply_attributes ctx ns dom attributes =
-  List.iter
-    (function
+  List.fold_left
+    (fun (constructors, finalizers as cfs) -> function
       | Property (k, v) ->
           if not (apply_special_prop ns dom k v) then
             if not (apply_effect_prop dom k v) then
-              Ojs.set_prop_ascii (Element.t_to_js dom) k (eval_prop v)
+              Ojs.set_prop_ascii (Element.t_to_js dom) k (eval_prop v) ;
+          cfs
 
-      | Style (k, v) -> set_style dom k (Ojs.string_to_js v)
+      | Style (k, v) ->
+          set_style dom k (Ojs.string_to_js v) ;
+          cfs
 
       | Attribute (k, v) ->
-          Element.set_attribute dom k v
+          Element.set_attribute dom k v ;
+          cfs
 
-      | Handler Decoder {event_type; _} -> ctx.add_listener event_type
+      | Handler Decoder {event_type; _} ->
+          ctx.add_listener event_type ;
+          cfs
 
-      | Handler CustomEvent _ -> ()
+      | Handler CustomEvent _ -> cfs
+
+      | Effect (Add, f) ->
+          f :: constructors, finalizers
+      | Effect (Del, f) ->
+          constructors, f :: finalizers
     )
-    attributes
+    ([], []) attributes
+
+let call_all id lst =
+  async (fun () -> List.iter (fun f -> f id) lst)
 
 let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
   fun ~parent ctx vdom ->
@@ -526,8 +542,9 @@ let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
           (Ojs.get_prop_ascii (Element.t_to_js elt.dom) "namespaceURI")
         |> Option.value ~default:""
       in
-      apply_attributes ctx ns elt.dom attributes;
-      BCustom {vdom; elt; ns; propagate_events}
+      let constructors, finalizers = apply_attributes ctx ns elt.dom attributes in
+      call_all (Element.id elt.dom) constructors ;
+      BCustom {vdom; elt; ns; propagate_events; finalizers}
 
   | Element {ns; tag; children; attributes; key = _} ->
       if debug then Printf.printf "create <%s>\n%!" tag;
@@ -537,8 +554,9 @@ let rec blit : 'msg. parent:_ -> ctx -> 'msg vdom -> 'msg ctrl =
       in
       let children = List.map (blit ~parent:dom ctx) children in
       List.iter (fun c -> List.iter (Element.append_child dom) (get_doms c)) children;
-      apply_attributes ctx ns dom attributes;
-      BElement {vdom; dom; children}
+      let constructors, finalizers = apply_attributes ctx ns dom attributes in
+      call_all (Element.id dom) constructors ;
+      BElement {vdom; dom; children; finalizers}
 
 let blit ~parent ctx vdom =
   try blit ~parent ctx vdom
@@ -596,7 +614,7 @@ let has_own_property o x =
   bool_of_js (call o "hasOwnProperty" [| string_to_js x |])
 
 let sync_attributes ctx ns dom a1 a2 =
-  let props = function Property (k, v) -> Some (k, v) | Style _ | Handler _ | Attribute _ -> None in
+  let props = function Property (k, v) -> Some (k, v) | _ -> None in
   let set k v =
     match k, v with
     | "value", String s ->
@@ -621,7 +639,6 @@ let sync_attributes ctx ns dom a1 a2 =
         Ojs.set_prop_ascii (Element.t_to_js dom) k
           begin match v with
           | String _ -> js_empty_string
-
           | Int _ | Float _ -> js_zero
           | Bool _ -> js_false
           end
@@ -633,7 +650,7 @@ let sync_attributes ctx ns dom a1 a2 =
     (choose props a1)
     (choose props a2);
 
-  let styles = function Style (k, v) -> Some (k, String v) | Property _ | Handler _ | Attribute _ -> None in
+  let styles = function Style (k, v) -> Some (k, String v) | _ -> None in
   let set k v = set_style dom k (eval_prop v)in
   let clear k _ = set_style dom k js_empty_string in
   sync_props
@@ -643,7 +660,7 @@ let sync_attributes ctx ns dom a1 a2 =
     (choose styles a1)
     (choose styles a2);
 
-  let attrs = function Attribute (k, v) -> Some (k, v) | Style _ | Property _ | Handler _ -> None in
+  let attrs = function Attribute (k, v) -> Some (k, v) | _ -> None in
   let set k v = Element.set_attribute dom k v in
   let clear k _ = Element.remove_attribute dom k in
   sync_props
@@ -661,9 +678,9 @@ let sync_attributes ctx ns dom a1 a2 =
 let rec dispose : type msg. msg ctrl -> unit = fun ctrl ->
   match ctrl with
   | BText _ -> ()
-  | BCustom {elt; _} -> elt.dispose ()
-  | BFragment {children; _}
-  | BElement {children; _} -> List.iter dispose children
+  | BCustom {elt; finalizers; _} -> call_all "" finalizers; elt.dispose ()
+  | BFragment {children; _} -> List.iter dispose children
+  | BElement {children; finalizers; dom; _} -> List.iter dispose children; call_all (Element.id dom) finalizers
   | BMap {child; _} -> dispose child
   | BMemo {child; _} -> dispose child
 
@@ -713,21 +730,21 @@ let rec sync : type old_msg msg. ctx -> Element.t -> Element.t -> old_msg ctrl -
       else
         bmemo vdom (sync ctx parent next c1 (f2 a2))
 
-  | BCustom {vdom = Custom {key=key1; elt=arg1; attributes=a1; propagate_events = _}; propagate_events = _; elt; ns}, Custom {key=key2; elt=arg2; attributes=a2; propagate_events}
+  | BCustom {vdom = Custom {key=key1; elt=arg1; attributes=a1; propagate_events = _}; propagate_events = _; elt; ns; finalizers}, Custom {key=key2; elt=arg2; attributes=a2; propagate_events}
     when key1 = key2 && (arg1 == arg2 || elt.sync arg2) ->
       sync_attributes ctx ns elt.dom a1 a2;
-      BCustom {vdom; elt; ns; propagate_events}
+      BCustom {vdom; elt; ns; propagate_events; finalizers}
 
   | BFragment {vdom = Fragment e1; children; _}, Fragment e2 when e1.key = e2.key ->
       let children = sync_children ctx parent next children e2.children in
       let doms = List.concat_map get_doms children in
       BFragment {vdom; doms; children }
 
-  | BElement {vdom = Element e1; dom; children}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns && e1.key = e2.key ->
+  | BElement {vdom = Element e1; dom; children; finalizers}, Element e2 when e1.tag = e2.tag && e1.ns = e2.ns && e1.key = e2.key ->
       let children = sync_children ctx dom Element.null children e2.children in
       (* synchronize properties & styles *)
       sync_attributes ctx e1.ns dom e1.attributes e2.attributes;
-      BElement {vdom; dom; children}
+      BElement {vdom; dom; children; finalizers}
 
   | _ ->
       let x = blit ~parent ctx vdom in
