@@ -381,13 +381,16 @@ let custom_attribute prop =
       Some
         (fun dom v ->
            try
-             let align_top =
+             let block =
                match v with
-               | Bool false -> false
-               | _ -> true
+               | String "start" -> Element.Start
+               | String "center" -> Element.Center
+               | String "end" -> Element.End_
+               | String "nearest" -> Element.Nearest
+               | _ -> Element.Start
              in
-             if not (is_visible dom) then
-               Element.scroll_into_view dom align_top;
+             let behavior = Element.Auto in
+             Element.scroll_into_view_options dom { behavior ; block };
            with exn -> Printf.printf "scroll: %s\n%!" (Printexc.to_string exn)
         )
 

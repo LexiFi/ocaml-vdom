@@ -602,11 +602,20 @@ module Element : sig
   type focus_options = { prevent_scroll: bool }
   val focus_options: t -> focus_options -> unit [@@js.call "focus"]
 
-  type scroll_into_view_options = { behavior : behavior option }
+  type scroll_into_view_options = {
+    behavior : behavior ;
+    block : scroll_block
+  }
   and behavior =
     | Auto [@js "auto"]
     | Instant [@js "instant"]
     | Smooth [@js "smooth"]
+  [@@js.enum]
+  and scroll_block =
+  | Start   [@js "start"]
+  | Center  [@js "center"]
+  | End_    [@js "end"]
+  | Nearest [@js "nearest"]
   [@@js.enum]
 
   val scroll_into_view_options: t -> scroll_into_view_options -> unit[@@js.call "scrollIntoView"]

@@ -254,10 +254,12 @@ val add_class: string -> 'msg attribute list -> 'msg attribute list
 (** Pseudo-attributes are interpreted in a special way
     by the infrastructure. *)
 
-val scroll_to_show: align_top:bool -> 'msg attribute
+val scroll_to_show: block:string -> 'msg attribute
 (** When this pseudo-attribute is first applied to an element, its
     parent is automatically scrolled (vertically) to show the
-    element. *)
+    element.
+    Argument [block] is picked from ["start"], ["center"], ["end"], and
+    ["nearest"] which correspond to JS [ScrollIntoView] options. *)
 
 val autofocus: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the
