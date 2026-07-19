@@ -606,6 +606,7 @@ module Element : sig
     behavior: behavior option;
     block: scroll_alignment option;
     inline: scroll_alignment option;
+    container: container option
   }
   and behavior =
     | Auto [@js "auto"]
@@ -617,6 +618,10 @@ module Element : sig
     | Center [@js "center"]
     | End [@js "end"]
     | Nearest [@js "nearest"]
+  [@@js.enum]
+  and container =
+    | AllContainers [@js "all"]
+    | NearestContainer [@js "nearest"]
   [@@js.enum]
 
   val scroll_into_view_options: t -> scroll_into_view_options -> unit[@@js.call "scrollIntoView"]
