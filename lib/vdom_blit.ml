@@ -415,7 +415,7 @@ let custom_attribute prop =
                 | "nearest" -> Some Element.NearestContainer
                 | _ -> None
               in
-              Element.scroll_into_view_options dom { behavior ; block ; inline ; container }
+              Element.scroll_into_view_options dom (Element.siv_options ?behavior ?block ?inline ?container ())
             | Bool b ->
               if not (is_visible dom) then
                 Element.scroll_into_view dom b

@@ -602,12 +602,7 @@ module Element : sig
   type focus_options = { prevent_scroll: bool }
   val focus_options: t -> focus_options -> unit [@@js.call "focus"]
 
-  type scroll_into_view_options = {
-    behavior: behavior option;
-    block: scroll_alignment option;
-    inline: scroll_alignment option;
-    container: container option
-  }
+  type scroll_into_view_options
   and behavior =
     | Auto [@js "auto"]
     | Instant [@js "instant"]
@@ -623,6 +618,14 @@ module Element : sig
     | AllContainers [@js "all"]
     | NearestContainer [@js "nearest"]
   [@@js.enum]
+
+  val siv_options:
+    ?behavior:behavior ->
+    ?block:scroll_alignment ->
+    ?inline:scroll_alignment ->
+    ?container:container ->
+    unit ->
+    scroll_into_view_options [@@js.builder]
 
   val scroll_into_view_options: t -> scroll_into_view_options -> unit[@@js.call "scrollIntoView"]
 
