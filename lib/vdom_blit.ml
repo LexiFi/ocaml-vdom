@@ -350,14 +350,14 @@ let rec eval_prop = function
   | Int x -> Ojs.int_to_js x
   | Bool x -> Ojs.bool_to_js x
   | Float x -> Ojs.float_to_js x
-  | Prod (a,_b) -> eval_prop a (* TODO FIXME *)
+  | List l -> Ojs.list_to_js eval_prop l
 
 let rec string_of_prop = function
   | String s -> s
   | Int x -> string_of_int x
   | Bool x -> string_of_bool x
   | Float x -> string_of_float x
-  | Prod (a,b) -> string_of_prop a ^ "," ^ string_of_prop b
+  | List l -> "[" ^ String.concat "," (List.map string_of_prop l) ^ "]"
 
 let rec same_prop v1 v2 =
   v1 == v2 ||
@@ -366,7 +366,7 @@ let rec same_prop v1 v2 =
   | Int x1, Int x2 -> x1 = x2
   | Bool x1, Bool x2 -> x1 = x2
   | Float x1, Float x2 -> x1 = x2
-  | Prod (a1,a2), Prod (b1,b2) -> same_prop a1 b1 && same_prop a2 b2
+  | List l1, List l2 -> List.for_all2 same_prop l1 l2
   | _ -> false
 
 let bmemo vdom child =
@@ -385,7 +385,7 @@ let custom_attribute prop =
         (fun dom v ->
            try
             match v with
-            | Prod (String bh, Prod (String bk, Prod (String il, String ct))) ->
+            | List [ String bh ; String bk ; String il ; String ct ] ->
               let behavior =
                 match bh with
                 | "auto" -> Some Element.Auto
@@ -472,6 +472,8 @@ let apply_special_prop ns dom k v =
   | _ -> false
 
 let js_empty_string = Ojs.string_to_js ""
+
+let js_empty_list = Ojs.list_to_js (fun _ -> js_empty_string) []
 
 let clear_special_prop ns dom k =
   match ns, k with
@@ -658,7 +660,7 @@ let sync_attributes ctx ns dom a1 a2 =
 
           | Int _ | Float _ -> js_zero
           | Bool _ -> js_false
-          | Prod _ -> js_empty_string (* TODO FIXME *)
+          | List _ -> js_empty_list
           end
   in
   sync_props

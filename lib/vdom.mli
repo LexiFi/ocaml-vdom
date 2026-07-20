@@ -171,7 +171,7 @@ type prop_val =
   | Int of int
   | Float of float
   | Bool of bool
-  | Prod of prop_val * prop_val
+  | List of prop_val list
 
 type 'msg attribute =
   | Property of string * prop_val

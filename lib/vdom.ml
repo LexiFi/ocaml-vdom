@@ -165,7 +165,7 @@ type prop_val =
   | Int of int
   | Float of float
   | Bool of bool
-  | Prod of prop_val * prop_val
+  | List of prop_val list
 
 type +'msg attribute =
   | Property of string * prop_val
@@ -257,17 +257,16 @@ let str_prop k v = Property (k, String v)
 let int_prop k v = Property (k, Int v)
 let bool_prop k v = Property (k, Bool v)
 let float_prop k v = Property (k, Float v)
-let prod_prop k v1 v2 = Property (k, Prod (v1,v2))
+let list_prop k l = Property (k, List l)
 let style k v = Style (k, v)
 let attr k v = Attribute (k, v)
 let int_attr k v = Attribute (k, string_of_int v)
 let float_attr k v = Attribute (k, string_of_float v)
 let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
 let scroll_to_show_with_options ~behavior ~block ~inline ~container = 
-  prod_prop 
+  list_prop 
     "scroll-to-show" 
-    (String behavior) 
-    (Prod (String block, Prod (String inline, String container)))
+    [ String behavior ; String block ; String inline ; String container ]
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x
 let autofocus_if_visible = str_prop "autofocus" "if-visible"
@@ -417,7 +416,7 @@ let rec string_of_prop_val =
   | Int i -> string_of_int i
   | Float f -> trim_end '.' (string_of_float f)
   | Bool b -> string_of_bool b
-  | Prod (a,b) -> string_of_prop_val a ^ "," ^ string_of_prop_val b
+  | List l -> "[" ^ String.concat "," (List.map string_of_prop_val l) ^ "]"
 
 let to_html vdom =
   let b = Buffer.create 654 in
