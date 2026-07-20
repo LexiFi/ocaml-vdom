@@ -260,7 +260,7 @@ val scroll_to_show: align_top:bool -> 'msg attribute
     parent is automatically scrolled (vertically) to show the
     element. *)
 
-val scroll_to_show_with_options: behavior:string -> block:string -> inline:string -> container:string -> 'msg attribute
+val scroll_to_show_with_options: ?behavior:string -> ?block:string -> ?inline:string -> ?container:string -> unit -> 'msg attribute
 (** Like scroll_to_show, but with JavaScript options given as strings. *)
 
 val autofocus: 'msg attribute

@@ -263,7 +263,7 @@ let attr k v = Attribute (k, v)
 let int_attr k v = Attribute (k, string_of_int v)
 let float_attr k v = Attribute (k, string_of_float v)
 let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
-let scroll_to_show_with_options ~behavior ~block ~inline ~container = 
+let scroll_to_show_with_options ?(behavior="") ?(block="") ?(inline="") ?(container="") () = 
   list_prop 
     "scroll-to-show" 
     [ String behavior ; String block ; String inline ; String container ]
