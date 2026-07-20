@@ -345,25 +345,28 @@ let key_of_vdom = function
       key
 
 
-let eval_prop = function
+let rec eval_prop = function
   | String x -> Ojs.string_to_js x
   | Int x -> Ojs.int_to_js x
   | Bool x -> Ojs.bool_to_js x
   | Float x -> Ojs.float_to_js x
+  | List l -> Ojs.list_to_js eval_prop l
 
-let string_of_prop = function
+let rec string_of_prop = function
   | String s -> s
   | Int x -> string_of_int x
   | Bool x -> string_of_bool x
   | Float x -> string_of_float x
+  | List l -> "[" ^ String.concat "," (List.map string_of_prop l) ^ "]"
 
-let same_prop v1 v2 =
+let rec same_prop v1 v2 =
   v1 == v2 ||
   match v1, v2 with
   | String x1, String x2 -> x1 = x2
   | Int x1, Int x2 -> x1 = x2
   | Bool x1, Bool x2 -> x1 = x2
   | Float x1, Float x2 -> x1 = x2
+  | List l1, List l2 -> List.for_all2 same_prop l1 l2
   | _ -> false
 
 let bmemo vdom child =
@@ -381,13 +384,44 @@ let custom_attribute prop =
       Some
         (fun dom v ->
            try
-             let align_top =
-               match v with
-               | Bool false -> false
-               | _ -> true
-             in
-             if not (is_visible dom) then
-               Element.scroll_into_view dom align_top;
+            match v with
+            | List [ String bh ; String bk ; String il ; String ct ] ->
+              let behavior =
+                match bh with
+                | "auto" -> Some Element.Auto
+                | "instant" -> Some Element.Instant
+                | "smooth" -> Some Element.Smooth
+                | _ -> None
+              in
+              let block =
+                match bk with
+                | "start" -> Some Element.Start
+                | "center" -> Some Element.Center
+                | "end" -> Some Element.End
+                | "nearest" -> Some Element.Nearest
+                | _ -> None
+              in
+              let inline =
+                match il with
+                | "start" -> Some Element.Start
+                | "center" -> Some Element.Center
+                | "end" -> Some Element.End
+                | "nearest" -> Some Element.Nearest
+                | _ -> None
+              in
+              let container =
+                match ct with
+                | "all" -> Some Element.AllContainers
+                | "nearest" -> Some Element.NearestContainer
+                | _ -> None
+              in
+              Element.scroll_into_view_options dom (Element.siv_options ?behavior ?block ?inline ?container ())
+            | Bool b ->
+              if not (is_visible dom) then
+                Element.scroll_into_view dom b
+            | _ ->
+              if not (is_visible dom) then
+                Element.scroll_into_view dom true
            with exn -> Printf.printf "scroll: %s\n%!" (Printexc.to_string exn)
         )
 
@@ -438,6 +472,8 @@ let apply_special_prop ns dom k v =
   | _ -> false
 
 let js_empty_string = Ojs.string_to_js ""
+
+let js_empty_list = Ojs.list_to_js (fun _ -> js_empty_string) []
 
 let clear_special_prop ns dom k =
   match ns, k with
@@ -624,6 +660,7 @@ let sync_attributes ctx ns dom a1 a2 =
 
           | Int _ | Float _ -> js_zero
           | Bool _ -> js_false
+          | List _ -> js_empty_list
           end
   in
   sync_props

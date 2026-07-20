@@ -165,6 +165,7 @@ type prop_val =
   | Int of int
   | Float of float
   | Bool of bool
+  | List of prop_val list
 
 type +'msg attribute =
   | Property of string * prop_val
@@ -256,11 +257,16 @@ let str_prop k v = Property (k, String v)
 let int_prop k v = Property (k, Int v)
 let bool_prop k v = Property (k, Bool v)
 let float_prop k v = Property (k, Float v)
+let list_prop k l = Property (k, List l)
 let style k v = Style (k, v)
 let attr k v = Attribute (k, v)
 let int_attr k v = Attribute (k, string_of_int v)
 let float_attr k v = Attribute (k, string_of_float v)
 let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
+let scroll_to_show_with_options ?(behavior="") ?(block="") ?(inline="") ?(container="") () = 
+  list_prop 
+    "scroll-to-show" 
+    [ String behavior ; String block ; String inline ; String container ]
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x
 let autofocus_if_visible = str_prop "autofocus" "if-visible"
@@ -404,6 +410,14 @@ let replace_char s c x =
       done;
       Buffer.contents buf
 
+let rec string_of_prop_val =
+  function
+  | String s -> s
+  | Int i -> string_of_int i
+  | Float f -> trim_end '.' (string_of_float f)
+  | Bool b -> string_of_bool b
+  | List l -> "[" ^ String.concat "," (List.map string_of_prop_val l) ^ "]"
+
 let to_html vdom =
   let b = Buffer.create 654 in
   let rec aux: type a. a vdom -> unit = function
@@ -414,13 +428,7 @@ let to_html vdom =
           List.fold_left
             (fun (attrs, styles) -> function
                | Property (name, value) ->
-                   let value =
-                     match value with
-                     | String s -> s
-                     | Int i -> string_of_int i
-                     | Float f -> trim_end '.' (string_of_float f)
-                     | Bool b -> string_of_bool b
-                   in
+                   let value = string_of_prop_val value in
                    let name =
                      match name with
                      | "className" -> "class"

@@ -171,6 +171,7 @@ type prop_val =
   | Int of int
   | Float of float
   | Bool of bool
+  | List of prop_val list
 
 type 'msg attribute =
   | Property of string * prop_val
@@ -258,6 +259,9 @@ val scroll_to_show: align_top:bool -> 'msg attribute
 (** When this pseudo-attribute is first applied to an element, its
     parent is automatically scrolled (vertically) to show the
     element. *)
+
+val scroll_to_show_with_options: ?behavior:string -> ?block:string -> ?inline:string -> ?container:string -> unit -> 'msg attribute
+(** Like scroll_to_show, but with JavaScript options given as strings. *)
 
 val autofocus: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the
