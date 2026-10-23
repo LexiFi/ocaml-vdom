@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2024 LexiFi                                                                    *)
+(* Copyright (C) 2000-2025 LexiFi                                                                    *)
 
 
 open Js_browser
@@ -9,6 +9,18 @@ open Vdom
 let debug = false
 
 type Vdom.js_object += Ojs of Ojs.t
+
+let extract_js_object = function
+  | Ojs o -> o
+  | _ -> assert false
+
+let on_js_event ?prevent_default ?stop_propagation event_type f =
+  Vdom.on_js ?prevent_default ?stop_propagation event_type
+    (function Ojs x -> f (Event.t_of_js x) | _ -> None)
+
+let on_js_event_with_options event_type f =
+  Vdom.on_js_with_options event_type
+    (function Ojs x -> f (Event.t_of_js x) | _ -> {msg = None; stop_propagation = false; prevent_default = false})
 
 module BDecoder = struct
 
@@ -65,7 +77,7 @@ module BDecoder = struct
   type 'a t = o -> ('a, error) result
 
 
-  let field key d o =
+  let field keys d o =
     let rec aux o = function
       | [] -> Ok o
       | key :: keys ->
@@ -74,7 +86,6 @@ module BDecoder = struct
             Error (o.path, Key_unbound key)
           else aux {path = (Key key :: o.path); obj} keys
     in
-    let keys = String.split_on_char '.' key in
     Result.bind (aux o keys) d
 
   let method_ name arg d o =
@@ -154,16 +165,21 @@ module BDecoder = struct
 
   let run d obj =
     match d {path = []; obj} with
-    | Ok x -> Ok x
+    | Ok _ as x -> x
     | Error err -> Error (string_of_error err)
 
   let rec eval : type a. ?extra_fields:(string * Ojs.t) list -> a Decoder.t -> a t = fun ?(extra_fields = []) -> function
-    | Field (key, d) ->
-        begin match List.assoc_opt key extra_fields with
-        | Some obj ->
-            fun o -> ((eval d) {path = (Key key :: o.path); obj})
-        | None ->
-            field key (eval d)
+    | Field (keys, d) ->
+        let keys = String.split_on_char '.' keys in
+        begin match keys with
+        | [] -> assert false
+        | key :: keys' ->
+            begin match List.assoc_opt key extra_fields with
+            | Some obj ->
+                fun o -> field keys' (eval d) {path = (Key key :: o.path); obj}
+            | None ->
+                field keys (eval d)
+            end
         end
     | Method (name, arg, d) -> method_ name arg (eval d)
     | Bind (f, d) -> bind (fun a -> eval ~extra_fields (f a)) (eval ~extra_fields d)
@@ -269,6 +285,7 @@ module Custom = struct
     | Encoded of { event_type: string; encoder: Encoder.t }
 
   let blur_event = Encoded {event_type = "blur"; encoder = Obj []}
+  let focus_event = Encoded {event_type = "focus"; encoder = Obj []}
   let input_event s = Encoded {event_type = "input"; encoder = Obj ["target", Obj ["value", String s]]}
   let checked_event b = Encoded {event_type = "click"; encoder = Obj ["target", Obj ["checked", Bool b]]}
   let change_event s = Encoded {event_type = "change"; encoder = Obj ["target", Obj ["value", String s]]}
@@ -369,11 +386,65 @@ let same_prop v1 v2 =
 let bmemo vdom child =
   BMemo {vdom; doms = get_doms child; child}
 
+let float_of_css_px s =
+  let len = String.length s in
+  if len > 2 && String.sub s (len - 2) 2 = "px" then
+    try float_of_string (String.sub s 0 (len - 2)) with _ -> 0.0
+  else
+    try float_of_string s with _ -> 0.0
+
+let scroll_margin_px dom prop =
+  let style = Window.get_computed_style window dom in
+  match Style.get style prop with
+  | "" -> 0.0
+  | s -> float_of_css_px s
+
+let has_scrollable_overflow dom =
+  let overflow_is_scrollable = function
+    | "auto" | "scroll" | "overlay" -> true
+    | _ -> false
+  in
+  let style = Window.get_computed_style window dom in
+  match Style.get style "overflow-y" with
+  | "" -> overflow_is_scrollable (Style.get style "overflow")
+  | value -> overflow_is_scrollable value
+
+let is_scrollable dom =
+  Element.scroll_height dom > Element.client_height dom
+  && has_scrollable_overflow dom
+
+let find_scroll_parent dom =
+  let rec loop elt =
+    let parent = Element.parent_node elt in
+    if parent == elt then
+      None
+    else
+      match Element.node_name parent with
+      | "BODY" | "HTML" -> None
+      | _ ->
+          if is_scrollable parent then
+            Some parent
+          else
+            loop parent
+  in
+  try loop dom with _ -> None
+
 let is_visible dom =
   let bounding = Element.get_bounding_client_rect dom in
-  let top = Rect.top bounding in
-  let bottom = Rect.bottom bounding in
-  top >= 0.0 && bottom <= Window.inner_height window
+  let margin_top = scroll_margin_px dom "scroll-margin-top" in
+  let margin_bottom = scroll_margin_px dom "scroll-margin-bottom" in
+  match find_scroll_parent dom with
+  | Some container ->
+      let cont = Element.get_bounding_client_rect container in
+      let top = Rect.top bounding in
+      let bottom = Rect.bottom bounding in
+      let cont_top = Rect.top cont in
+      let cont_bottom = Rect.bottom cont in
+      top >= cont_top +. margin_top && bottom <= cont_bottom -. margin_bottom
+  | None ->
+      let top = Rect.top bounding in
+      let bottom = Rect.bottom bounding in
+      top >= 0.0 +. margin_top && bottom <= Window.inner_height window -. margin_bottom
 
 let custom_attribute prop =
   match prop with

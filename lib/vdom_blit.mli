@@ -1,11 +1,24 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2024 LexiFi                                                                    *)
+(* Copyright (C) 2000-2025 LexiFi                                                                    *)
 
 
 (** {1 Rendering "Virtual applications" to concrete ones} *)
 
 type Vdom.js_object += Ojs of Ojs.t
+
+val extract_js_object: Vdom.js_object -> Ojs.t
+
+val on_js_event:
+  ?prevent_default:unit ->
+  ?stop_propagation:unit ->
+  string ->
+  (Js_browser.Event.t -> 'msg option) ->
+  'msg Vdom.attribute
+(** Same as Vdom.on_js but does the extraction of the Js_browser.Event.t *)
+
+val on_js_event_with_options: string -> (Js_browser.Event.t -> 'msg Vdom.msg_options) -> 'msg Vdom.attribute
+(** Same as Vdom.on_js_with_options but does the extraction of the Js_browser.Event.t *)
 
 module BDecoder: sig
 
@@ -60,6 +73,7 @@ module Custom: sig
     | Encoded of { event_type: string; encoder: Encoder.t }
 
   val blur_event: event
+  val focus_event: event
   val input_event: string -> event
   val checked_event: bool -> event
   val change_event: string -> event
