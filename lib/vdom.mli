@@ -261,10 +261,19 @@ val add_class: string -> 'msg attribute list -> 'msg attribute list
 (** Pseudo-attributes are interpreted in a special way
     by the infrastructure. *)
 
-val scroll_to_show: align_top:bool -> 'msg attribute
-(** When this pseudo-attribute is first applied to an element, its
-    parent is automatically scrolled (vertically) to show the
-    element. *)
+type scroll_behavior = Auto | Instant | Smooth
+
+type scroll_alignment = Start | Center | End | Nearest
+
+val scroll_to_show:
+  ?behavior:scroll_behavior -> ?block:scroll_alignment -> ?inline:scroll_alignment ->
+  unit -> 'msg attribute
+(** When this pseudo-attribute is first applied to an element, if the element
+    is not visible in its scrollable container (or in the viewport), its
+    ancestors are scrolled to show it, as done by the browser's
+    [scrollIntoView] with the given options.  Omitted options take the
+    browser's defaults ([block = Start], [inline = Nearest]); [~block:Nearest]
+    scrolls by the minimal amount needed. *)
 
 val autofocus: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the

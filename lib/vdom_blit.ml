@@ -452,13 +452,39 @@ let custom_attribute prop =
       Some
         (fun dom v ->
            try
-             let align_top =
-               match v with
-               | Bool false -> false
-               | _ -> true
-             in
-             if not (is_visible dom) then
-               Element.scroll_into_view dom align_top;
+             if not (is_visible dom) then begin
+               let options =
+                 match v with
+                 | String s ->
+                     List.filter_map
+                       (fun option ->
+                          match String.split_on_char '=' option with
+                          | [name; value] -> Some (name, value)
+                          | _ -> None
+                       )
+                       (String.split_on_char ';' s)
+                 | _ -> []
+               in
+               let behavior =
+                 match List.assoc_opt "behavior" options with
+                 | Some "auto" -> Some Element.Auto
+                 | Some "instant" -> Some Element.Instant
+                 | Some "smooth" -> Some Element.Smooth
+                 | _ -> None
+               in
+               let alignment name =
+                 match List.assoc_opt name options with
+                 | Some "start" -> Some Element.Start
+                 | Some "center" -> Some Element.Center
+                 | Some "end" -> Some Element.End
+                 | Some "nearest" -> Some Element.Nearest
+                 | _ -> None
+               in
+               Element.scroll_into_view dom
+                 ~options:(Element.scroll_into_view_options
+                             ?behavior ?block:(alignment "block") ?inline:(alignment "inline") ())
+                 ()
+             end
            with exn -> Printf.printf "scroll: %s\n%!" (Printexc.to_string exn)
         )
 

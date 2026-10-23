@@ -15,7 +15,14 @@ Next release
   binding operators...); error handlers now receive an `exn` (breaking)
 - `Js_browser.FileReader.result` now returns `Ojs.t`, `read_as_binary_string`
   replaced by `read_as_array_buffer` (breaking)
-- `Js_browser.Element.scroll_into_view_options`: `block` and `inline` fields
+- `Vdom.scroll_to_show`: takes optional `?behavior`, `?block` and `?inline`
+  arguments (as the browser's `scrollIntoView`) instead of `~align_top`
+  (`~align_top:false` becomes `~block:End`); `~block:Nearest` scrolls by the
+  minimal amount needed (#60) (breaking)
+- `Js_browser.Element.scroll_into_view`: takes an optional `?options` argument
+  (built with `scroll_into_view_options`, which supports `block` and `inline`)
+  instead of a boolean (`false` becomes `~block:End`); the former
+  `scroll_into_view_options` record passed absent options as `null` (breaking)
 - `Js_browser`: new bindings (`Intl`, `Selection`, `URLSearchParams`,
   `Notification`, `ResizeObserver`, `IntersectionObserver`, clipboard, ...)
 

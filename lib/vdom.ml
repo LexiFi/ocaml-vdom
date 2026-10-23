@@ -260,7 +260,34 @@ let style k v = Style (k, v)
 let attr k v = Attribute (k, v)
 let int_attr k v = Attribute (k, string_of_int v)
 let float_attr k v = Attribute (k, string_of_float v)
-let scroll_to_show ~align_top = bool_prop "scroll-to-show" align_top
+
+type scroll_behavior = Auto | Instant | Smooth
+
+type scroll_alignment = Start | Center | End | Nearest
+
+let scroll_to_show ?behavior ?block ?inline () =
+  let string_of_behavior = function
+    | Auto -> "auto"
+    | Instant -> "instant"
+    | Smooth -> "smooth"
+  in
+  let string_of_alignment = function
+    | Start -> "start"
+    | Center -> "center"
+    | End -> "end"
+    | Nearest -> "nearest"
+  in
+  let option name to_string = function
+    | None -> []
+    | Some x -> [name ^ "=" ^ to_string x]
+  in
+  (* Encoded as "behavior=smooth;block=nearest", decoded in Vdom_blit. *)
+  str_prop "scroll-to-show"
+    (String.concat ";"
+       (option "behavior" string_of_behavior behavior
+        @ option "block" string_of_alignment block
+        @ option "inline" string_of_alignment inline))
+
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x
 let autofocus_if_visible = str_prop "autofocus" "if-visible"

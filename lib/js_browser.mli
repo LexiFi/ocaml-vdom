@@ -866,31 +866,33 @@ module Element : sig
   val set_scroll_top: t -> float -> unit [@@js.set]
   val scroll_left: t -> float [@@js.get]
   val set_scroll_left: t -> float -> unit [@@js.set]
-  val scroll_into_view: t -> bool -> unit[@@js.call]
   val focus: t -> unit [@@js.call]
   val blur: t -> unit [@@js.call]
 
   type focus_options = { prevent_scroll: bool }
   val focus_options: t -> focus_options -> unit [@@js.call "focus"]
 
-  type scroll_into_view_options = {
-    behavior: behavior option;
-    block: scroll_alignment option [@js "block"];
-    inline: scroll_alignment option [@js "inline"];
-  }
-  and behavior =
+  type behavior =
     | Auto [@js "auto"]
     | Instant [@js "instant"]
     | Smooth [@js "smooth"]
   [@@js.enum]
-  and scroll_alignment =
+
+  type scroll_alignment =
     | Start [@js "start"]
     | Center [@js "center"]
     | End [@js "end"]
     | Nearest [@js "nearest"]
   [@@js.enum]
 
-  val scroll_into_view_options: t -> scroll_into_view_options -> unit[@@js.call "scrollIntoView"]
+  type scroll_into_view_options
+  val scroll_into_view_options:
+    ?behavior:behavior -> ?block:scroll_alignment -> ?inline:scroll_alignment -> unit ->
+    scroll_into_view_options [@@js.builder]
+  (** Omitted options are left out of the JS object (not passed as [null]),
+      so that the browser uses its defaults ([block = Start], [inline = Nearest]). *)
+
+  val scroll_into_view: t -> ?options:scroll_into_view_options -> unit -> unit [@@js.call]
 
   type scroll_by_options = { top: float; left: float; behavior: behavior option }
 
