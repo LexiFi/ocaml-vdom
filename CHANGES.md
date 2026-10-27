@@ -27,6 +27,8 @@ Next release
   `Notification`, `ResizeObserver`, `IntersectionObserver`, clipboard, ...)
 - Requires OCaml >= 4.13 and js_of_ocaml-compiler >= 4.0.0
 
+Warning: this version is not fully retro-compatible with the previous one. Existing code should be adapted slightly (see the entries marked "breaking").
+
 
 0.3
 ===
