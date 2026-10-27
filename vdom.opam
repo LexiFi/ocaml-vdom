@@ -17,10 +17,10 @@ homepage: "https://github.com/LexiFi/ocaml-vdom"
 bug-reports: "https://github.com/LexiFi/ocaml-vdom/issues"
 depends: [
   "dune" {>= "3.0"}
-  "ocaml" {>= "4.10"}
+  "ocaml" {>= "4.13"}
   "gen_js_api" {>= "1.0.7"}
   "ojs"
-  "js_of_ocaml-compiler"
+  "js_of_ocaml-compiler" {>= "4.0.0"}
   "odoc" {with-doc}
 ]
 conflicts: [

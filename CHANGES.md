@@ -25,6 +25,7 @@ Next release
   `scroll_into_view_options` record passed absent options as `null` (breaking)
 - `Js_browser`: new bindings (`Intl`, `Selection`, `URLSearchParams`,
   `Notification`, `ResizeObserver`, `IntersectionObserver`, clipboard, ...)
+- Requires OCaml >= 4.13 and js_of_ocaml-compiler >= 4.0.0
 
 
 0.3
