@@ -1,5 +1,5 @@
-Next release
-============
+0.4
+===
 
 - Synchronization algorithm purely based on the VDOM, avoid reading from the real DOM
 - `Vdom.autofocus_prevent_scroll`
