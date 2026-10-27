@@ -1,22 +1,155 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2024 LexiFi                                                                    *)
+(* Copyright (C) 2000-2025 LexiFi                                                                    *)
 
 (** {1 Bindings for the DOM and other client-side Javascript APIs} *)
 
-module Promise: sig
+module UntypedPromise : sig
+
+  type t = private Ojs.t
+  val t_to_js: t -> Ojs.t
+  val t_of_js: Ojs.t -> t
+
   [@@@js.stop]
-  type 'a t
-  val then_: ?error:(Ojs.t -> unit) -> success:('a -> unit) -> 'a t -> unit
+  val return: Ojs.t -> t
+  val fail: Ojs.t -> t
+  val bind: ?error:(Ojs.t -> t) -> t -> (Ojs.t -> t) -> t
+  val then_: ?error:(Ojs.t -> unit) -> success:(Ojs.t -> unit) -> t -> unit
+  val all: Ojs.t list -> t
   [@@@js.start]
 
   [@@@js.implem
-    type 'a t = (Ojs.t -> 'a) * Ojs.t
+    val resolve: Ojs.t -> Ojs.t [@@js.global "Promise.resolve"]
+    val reject: Ojs.t -> Ojs.t [@@js.global "Promise.reject"]
+    val then_: Ojs.t -> success:(Ojs.t -> Ojs.t) -> error:(Ojs.t -> Ojs.t) -> Ojs.t [@@js.call "then"]
+    val all: Ojs.t list -> Ojs.t [@@js.global "Promise.all"]
 
-    let t_of_js f x = (f, x)
-    val then_: Ojs.t -> success:(Ojs.t -> unit) -> error:(Ojs.t -> unit) option -> unit[@@js.call "then"]
-    let then_ ?error ~success (alpha_of_js, ojs) =
-      then_ ojs ~success:(fun x -> success (alpha_of_js x)) ~error
+    type wrap = { content: Ojs.t }[@@js]
+
+    let is_promise o =
+      resolve o == o
+
+    let wrap o =
+      if is_promise o then
+        wrap_to_js { content = o }
+      else o
+
+    let unwrap o =
+      if Ojs.has_property o "content" then
+        Ojs.get_prop_ascii o "content"
+      else
+        o
+
+    let return x = resolve (wrap x)
+    let fail err = reject (wrap err)
+    let bind ?(error = fail) p f =
+      then_ p ~success:(fun x -> f (unwrap x))
+        ~error:(fun x -> error (unwrap x))
+    let then_ ?error ~success p =
+      let error =
+        match error with
+        | None -> fail
+        | Some f -> fun err -> f err; Ojs.null
+      in
+      let f x = success x; Ojs.null in
+      ignore (bind ~error p f)
+  ]
+end
+
+module Promise : sig
+  [@@@js.stop]
+  type 'a t
+  val t_to_js: ('a -> Ojs.t) -> 'a t -> Ojs.t
+  val t_of_js: (Ojs.t -> 'a) -> Ojs.t -> 'a t
+
+  val fail: exn -> 'a t
+  val return: 'a -> 'a t
+  val bind: ?error:(exn -> 'b t) -> 'a t -> ('a -> 'b t) -> 'b t
+  val map: ('a -> 'b) -> 'a t -> 'b t
+  val prod: 'a t -> 'b t -> ('a * 'b) t
+  val then_: ?error:(exn -> unit) -> success:('a -> unit) -> 'a t -> unit
+  val all: 'a t list -> 'a list t
+
+  module List : sig
+    val map: ('a -> 'b t) -> 'a list -> 'b list t
+  end
+
+  module Option : sig
+    val map: ('a -> 'b t) -> 'a option -> 'b option t
+  end
+
+  module O : sig
+    val ( let+ ): 'a t -> ('a -> 'b) -> 'b t
+    val ( and+ ): 'a t -> 'b t -> ('a * 'b) t
+    val ( let* ): 'a t -> ('a -> 'b t) -> 'b t
+    val ( and* ): 'a t -> 'b t -> ('a * 'b) t
+  end
+
+  val catch: 'a t -> (exn -> 'a t) -> 'a t
+
+  [@@@js.start]
+  [@@@js.implem
+    type 'a t = UntypedPromise.t
+
+    let fail exn =
+      UntypedPromise.fail (Obj.magic exn)
+
+    let return x =
+      UntypedPromise.return (Obj.magic x)
+
+    let wrap_error error =
+      match error with
+      | None -> None
+      | Some error_handler ->
+          Some
+            (fun js_exn ->
+               try
+                 Jsoo_runtime.Error.raise_ (Obj.magic js_exn)
+               with exn -> error_handler exn
+            )
+
+    let bind ?error p f =
+      let error = wrap_error error in
+      UntypedPromise.bind ?error p
+        (fun x -> f (Obj.magic x))
+
+    let then_ ?error ~success p =
+      let error = wrap_error error in
+      UntypedPromise.then_ ?error
+        ~success:(fun x -> success (Obj.magic x)) p
+
+    let prod p1 p2 =
+      bind (UntypedPromise.all [p1; p2])
+        (fun ojs ->
+           match Ojs.list_of_js Ojs.t_of_js ojs with
+           | [x1; x2] -> return (x1, x2)
+           | _ -> assert false
+        )
+    let map f p = bind p (fun x -> return (f x))
+    let t_to_js f p = UntypedPromise.t_to_js (map f p)
+    let t_of_js f p = map f (UntypedPromise.t_of_js p)
+
+    let all l = map (Ojs.list_of_js Ojs.t_of_js) (UntypedPromise.all l)
+
+    module List = struct
+      let map f l =
+        all (List.map f l)
+    end
+
+    module Option = struct
+      let map f = function
+        | None -> return None
+        | Some x -> map Option.some (f x)
+    end
+
+    module O = struct
+      let (let+) p f = map f p
+      let (and+) = prod
+      let (let*) p f = bind p f
+      let (and*) = prod
+    end
+
+    let catch p error = bind p ~error return
   ]
 end
 
@@ -53,6 +186,7 @@ module JsString : sig
 
   val length: t -> int [@@js.get]
   val char_code_at: t -> int -> int [@@js.call]
+  val substring : t -> int -> int -> t [@@js.call]
   val to_lower_case: t -> t [@@js.call]
   val to_upper_case: t -> t [@@js.call]
   val concat: t -> (t list [@js.variadic]) -> t [@@js.call]
@@ -62,6 +196,69 @@ module JsString : sig
   val repeat: t -> int -> t [@@js.call]
   val search: t -> RegExp.t -> int [@@js.call]
   val trim: t -> t [@@js.call]
+
+  type collator
+  val new_collator: ?language_code:string -> unit -> collator [@@js.new "Intl.Collator"]
+  val default_collator: collator
+  [@@js.custom let default_collator = new_collator ()]
+
+  val compare: collator -> t -> t -> int [@@js.call]
+  val compare_default: t -> t -> int
+  [@@js.custom let compare_default = compare default_collator]
+  val equal: t -> t -> bool
+  [@@js.custom
+    let equal a b =
+      Ojs.bool_of_js (Ojs.call (Ojs.variable "Object") "is" [|t_to_js a; t_to_js b|])
+    ]
+
+  (* UTF index conversions:
+     - UTF-8 byte index (0-based) <-> UTF-16 code-unit index (0-based). *)
+  val utf8_to_utf16_index: t -> int -> int
+  [@@js.custom
+    let utf8_bytes_of_code_point cp =
+      if cp <= 0x7F then 1
+      else if cp <= 0x7FF then 2
+      else if cp <= 0xFFFF then 3
+      else 4
+
+    let consume_one_code_point_utf16_utf8 s ~n i bytes =
+      let cu1 = char_code_at s !i in
+      let cp, width =
+        if 0xD800 <= cu1 && cu1 <= 0xDBFF && !i + 1 < n then
+          let cu2 = char_code_at s (!i + 1) in
+          if 0xDC00 <= cu2 && cu2 <= 0xDFFF then
+            0x10000 + ((cu1 - 0xD800) lsl 10) + (cu2 - 0xDC00), 2
+          else
+            cu1, 1
+        else
+          cu1, 1
+      in
+      i := !i + width;
+      bytes := !bytes + utf8_bytes_of_code_point cp
+
+    let utf8_to_utf16_index s byte_col =
+      let target = Int.max 0 byte_col in
+      let n = length s in
+      let i = ref 0 in
+      let bytes = ref 0 in
+      while !bytes < target && !i < n do
+        consume_one_code_point_utf16_utf8 s ~n i bytes
+      done;
+      !i
+    ]
+
+  val utf16_to_utf8_index: t -> int -> int
+  [@@js.custom
+    let utf16_to_utf8_index s utf16_col0 =
+      let n = length s in
+      let target = Int.max 0 (Int.min utf16_col0 n) in
+      let i = ref 0 in
+      let bytes = ref 0 in
+      while !i < target && !i < n do
+        consume_one_code_point_utf16_utf8 s ~n i bytes
+      done;
+      !bytes
+    ]
 end
 
 module Date : sig
@@ -119,6 +316,31 @@ module Date : sig
   val to_UTC_string : t -> string [@@js.call]
 end
 
+module Intl : sig
+  module DateTimeFormat : sig
+    type options
+
+    val options:
+      ?hour12:bool ->
+      ?weekday:string ->
+      ?year:string ->
+      ?month:string ->
+      ?day:string ->
+      ?hour:string ->
+      ?minute:string ->
+      ?second:string ->
+      ?time_zone:string ->
+      ?time_zone_name:string ->
+      ?date_style:string ->
+      ?time_style:string -> unit -> options [@@js.builder]
+
+    type t
+
+    val create: string list -> ?options:options -> unit -> t [@@js.new "Intl.DateTimeFormat"]
+    val format: t -> Date.t -> string [@@js.call]
+  end
+end
+
 module ArrayBuffer : sig
   type t
   val t_of_js: Ojs.t -> t
@@ -159,6 +381,7 @@ module DataTransfer : sig
   type t = private Ojs.t
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
+  val types: t -> string list [@@js.get]
   val files: t -> File.t list [@@js.get]
   val get_data: t -> string -> string [@@js.call]
 end
@@ -348,8 +571,19 @@ module Event : sig
     | NonStandard of string [@js.default]
   [@@js.enum]
 
+  type event_options
+  val create: ?bubbles:bool -> ?cancelable:bool -> ?composed:bool -> kind -> t
+  [@@js.custom
+    val event_options: ?bubbles:bool -> ?cancelable:bool -> ?composed:bool -> unit -> event_options [@@js.builder]
+    val create: kind -> event_options -> t [@@js.new "Event"]
+    let create ?bubbles ?cancelable ?composed kind =
+      let options = event_options ?bubbles ?cancelable ?composed () in
+      create kind options
+    ]
+
   val target: t -> Ojs.t [@@js.get]
   val related_target: t -> Ojs.t option [@@js.get]
+  val time_stamp: t -> float [@@js.get]
   val prevent_default: t -> unit [@@js.call]
   val stop_propagation: t -> unit [@@js.call]
   val type_: t -> string [@@js.get]
@@ -369,6 +603,8 @@ module Event : sig
   val movement_y: t -> int (* mouse *) [@@js.get]
 
   val buttons: t -> int (* mouse *) [@@js.get]
+
+  val pointer_id: t -> int (* pointer *) [@@js.get]
 
   val alt_key: t -> bool (* key *) [@@js.get]
   val ctrl_key: t -> bool (* key *) [@@js.get]
@@ -411,6 +647,10 @@ module SVGRect : sig
   val y: t -> float [@@js.get]
   val height: t -> float [@@js.get]
   val width: t -> float [@@js.get]
+end
+
+module Math : sig
+  val random: unit -> float [@@js.global "Math.random"]
 end
 
 module Style : sig
@@ -475,6 +715,11 @@ module Element : sig
     let null = t_of_js Ojs.null
     ]
 
+  val is_null: t -> bool
+  [@@js.custom
+    let is_null t = Ojs.is_null (t_to_js t)
+    ]
+
   val id: t -> string [@@js.get]
   val set_id: t -> string -> unit [@@js.set]
 
@@ -493,12 +738,35 @@ module Element : sig
   val clone_node: t (* T *) -> bool -> t [@@js.call]
   val contains: t (* T *) -> t (* T *) -> bool [@@js.call]
   val append_child: t -> t (* T *) -> unit [@@js.call]
+  val prepend: t -> t (* T *) -> unit [@@js.call]
   val insert_before: t -> t (* T *) -> t (* T *) -> unit [@@js.call]
   val replace_child: t -> t (* T *) -> t (* T *) -> unit [@@js.call]
   val remove_child: t -> t (* T *) -> unit [@@js.call]
   val first_child: t -> t (* May return Element.null *) [@@js.get]
   val last_child: t -> t (* May return Element.null *) [@@js.get]
   val next_sibling: t (* T *) -> t (* May return Element.null *) [@@js.get]
+  val is_connected: t (* T *) -> bool [@@js.get]
+
+  type document_position = private int
+
+  type document_position_const =
+    | DOCUMENT_POSITION_DISCONNECTED [@js 1]
+    | DOCUMENT_POSITION_PRECEDING [@js 2]
+    | DOCUMENT_POSITION_FOLLOWING [@js 4]
+    | DOCUMENT_POSITION_CONTAINS [@js 8]
+    | DOCUMENT_POSITION_CONTAINED_BY [@js 16]
+    | DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC [@js 32]
+  [@@js.enum]
+
+  val document_position: document_position_const -> document_position [@@js.cast]
+
+  val compare_document_position: t (* T *) -> t (* T *) -> document_position [@@js.call]
+
+  val document_position_has: document_position -> document_position -> bool
+  [@@js.custom
+    let document_position_has p1 p2 =
+      (p1 land p2) <> 0
+    ]
 
   val remove_all_children: t -> unit
   [@@js.custom
@@ -509,6 +777,8 @@ module Element : sig
       in
       loop (first_child x)
     ]
+
+  val children: t -> t list [@@js.get]
 
   val has_child_nodes: t (* T *) -> bool [@@js.call]
   val add_event_listener: t (* T *) -> Event.kind -> (Event.t -> unit) -> bool -> unit [@@js.call]
@@ -530,6 +800,7 @@ module Element : sig
 
   val has_attribute: t -> string -> bool [@@js.call]
   val get_attribute: t -> string -> string [@@js.call]
+  val get_attribute_opt: t -> string -> string option [@@js.call "getAttribute"]
   val remove_attribute: t -> string -> unit [@@js.call]
   val set_attribute: t -> string -> string -> unit [@@js.call]
   val get_bounding_client_rect: t -> Rect.t [@@js.call]
@@ -595,21 +866,33 @@ module Element : sig
   val set_scroll_top: t -> float -> unit [@@js.set]
   val scroll_left: t -> float [@@js.get]
   val set_scroll_left: t -> float -> unit [@@js.set]
-  val scroll_into_view: t -> bool -> unit[@@js.call]
   val focus: t -> unit [@@js.call]
   val blur: t -> unit [@@js.call]
 
   type focus_options = { prevent_scroll: bool }
   val focus_options: t -> focus_options -> unit [@@js.call "focus"]
 
-  type scroll_into_view_options = { behavior : behavior option }
-  and behavior =
+  type behavior =
     | Auto [@js "auto"]
     | Instant [@js "instant"]
     | Smooth [@js "smooth"]
   [@@js.enum]
 
-  val scroll_into_view_options: t -> scroll_into_view_options -> unit[@@js.call "scrollIntoView"]
+  type scroll_alignment =
+    | Start [@js "start"]
+    | Center [@js "center"]
+    | End [@js "end"]
+    | Nearest [@js "nearest"]
+  [@@js.enum]
+
+  type scroll_into_view_options
+  val scroll_into_view_options:
+    ?behavior:behavior -> ?block:scroll_alignment -> ?inline:scroll_alignment -> unit ->
+    scroll_into_view_options [@@js.builder]
+  (** Omitted options are left out of the JS object (not passed as [null]),
+      so that the browser uses its defaults ([block = Start], [inline = Nearest]). *)
+
+  val scroll_into_view: t -> ?options:scroll_into_view_options -> unit -> unit [@@js.call]
 
   type scroll_by_options = { top: float; left: float; behavior: behavior option }
 
@@ -625,8 +908,16 @@ module Element : sig
 
   val query_selector: t -> string -> t [@@js.call]
   val query_selector_all: t -> string -> t list [@@js.call]
+  val closest: t -> string -> t option [@@js.call]
 
   val class_list: t -> ClassList.t [@@js.get]
+
+  val set_pointer_capture: t -> int -> unit [@@js.call]
+  val release_pointer_capture: t -> int -> unit [@@js.call]
+
+  val nonce: t -> string [@@js.get]
+
+  val tab_index: t -> int [@@js.get]
 end
 
 module Range : sig
@@ -639,11 +930,25 @@ module Range : sig
   val get_bounding_client_rect: t -> Rect.t [@@js.call]
 end
 
+module Selection: sig
+  type t
+  val remove_all_ranges: t -> unit [@@js.call]
+  val is_collapsed: t -> bool [@@js.get]
+end
 
 module Document: sig
   type t
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
+
+  type ready_state =
+    | Loading [@js "loading"]
+    | Interactive [@js "interactive"]
+    | Complete [@js "complete"]
+    | Other of string [@js.default]
+  [@@js.enum]
+
+  val ready_state: t -> ready_state [@@js.get]
 
   val create_element: t -> string -> Element.t [@@js.call]
   val create_element_ns: t -> string -> string -> Element.t [@@js.call "createElementNS"]
@@ -653,6 +958,8 @@ module Document: sig
 
   val get_element_by_id: t -> string -> Element.t option [@@js.call]
   val get_elements_by_class_name: t -> string -> Element.t array [@@js.call]
+  val get_elements_by_tag_name: t -> string -> Element.t array [@@js.call]
+  val element_from_point: t -> float -> float -> Element.t option [@@js.call]
 
   val body: t -> Element.t [@@js.get]
   val document_element: t -> Element.t [@@js.get]
@@ -672,7 +979,12 @@ module Document: sig
   val query_selector: t -> string -> Element.t [@@js.call]
   val query_selector_all: t -> string -> Element.t list [@@js.call]
 
-  val remove_all_selection_ranges: t -> unit [@@js.call "getSelection().removeAllRanges"]
+  val get_selection: t -> Selection.t [@@js.call]
+  val remove_all_selection_ranges: t -> unit
+  [@@js.custom
+    let remove_all_selection_ranges x = Selection.remove_all_ranges (get_selection x)]
+
+  val hidden: t -> bool [@@js.get]
 end
 
 module History : sig
@@ -725,6 +1037,15 @@ module Location: sig
   val replace: t -> string -> unit [@@js.call]
 end
 
+module URLSearchParams: sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  val create: string -> t [@@js.new "URLSearchParams"]
+  val get: t -> string -> string option [@@js.call]
+end
+
 module Window: sig
   type t
   val t_of_js: Ojs.t -> t
@@ -755,6 +1076,7 @@ module Window: sig
   val request_animation_frame: t -> (float -> unit) -> unit [@@js.call]
 
   val open_: t -> ?url:string -> ?name:string -> ?features:string -> ?replace:bool -> unit -> t [@@js.call]
+  val close: t -> unit [@@js.call]
   val alert: t -> string -> unit [@@js.call]
 
   val session_storage: t -> Storage.t option [@@js.get]
@@ -785,6 +1107,8 @@ module Window: sig
 
   val event_source: Event.t -> t [@@js.get "source"] (* message *)
   val post_message: t -> Ojs.t -> string -> unit [@@js.call]
+
+  val focus: t -> unit [@@js.call]
 end
 
 module IFrame: sig
@@ -811,11 +1135,12 @@ module FileReader : sig
   val t_to_js: t -> Ojs.t
   val create: unit -> t [@@js.new "FileReader"]
   val ready_state: t -> state [@@js.get]
-  val result: t -> string [@@js.get]
+  val result: t -> Ojs.t [@@js.get]
   val set_onload: t -> (unit -> unit) -> unit [@@js.set]
-  val read_as_binary_string: t -> File.t -> unit [@@js.call]
+  val set_onerror: t -> (unit -> unit) -> unit [@@js.set]
   val read_as_text: t -> File.t -> unit [@@js.call]
   val read_as_data_url: t -> File.t -> unit [@@js.call "readAsDataURL"]
+  val read_as_array_buffer: t -> File.t -> unit [@@js.call]
 end
 
 module XHR: sig
@@ -946,6 +1271,7 @@ module Console : sig
   type t
 
   val log: t -> Ojs.t -> unit [@@js.call]
+  val error: t -> Ojs.t -> unit [@@js.call]
   val time: t -> string -> unit [@@js.call]
   val time_end: t -> string -> unit [@@js.call "timeEnd"]
 end
@@ -1019,6 +1345,10 @@ module TextDecoder: sig
 end
 
 module Navigator: sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
   module AuthenticatorAttestationResponse: sig
     type t = Ojs.t
     val t_of_js: Ojs.t -> t
@@ -1136,4 +1466,97 @@ module Navigator: sig
 
     val get: get_options -> Ojs.t (* Credential *) Promise.t [@@js.global "navigator.credentials.get"]
   end
+
+  module ClipboardItem: sig
+    type t
+    val t_of_js: Ojs.t -> t
+    val t_to_js: t -> Ojs.t
+
+    val types: t -> string list [@@js.get]
+    val get_type: t -> string -> Blob.t Promise.t [@@js.call]
+  end
+
+  module Clipboard: sig
+    type t
+    val t_of_js: Ojs.t -> t
+    val t_to_js: t -> Ojs.t
+
+    val read_text: t -> string Promise.t [@@js.call]
+    val write_text: t -> string -> unit Promise.t [@@js.call]
+
+    val read: t -> ClipboardItem.t list Promise.t [@@js.call]
+  end
+
+  val clipboard: t -> Clipboard.t [@@js.get]
+end
+
+val navigator: Navigator.t [@@js.global]
+
+module Notification : sig
+  type options
+
+  val options:
+    ?body:string ->
+    ?data:Ojs.t ->
+    ?icon:string ->
+    ?require_interaction:bool ->
+    ?timestamp:float -> unit -> options [@@js.builder]
+
+  type t
+
+  val create: string -> ?options:options -> unit -> t [@@js.new "Notification"]
+  val permission: unit -> string [@@js.get "Notification.permission"]
+  val request_permission: unit -> string Promise.t [@@js.global "Notification.requestPermission"]
+  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit [@@js.call]
+end
+
+module ResizeObserver : sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  type entry
+  val entry_of_js: Ojs.t -> entry
+  val entry_to_js: entry -> Ojs.t
+
+  val content_rect: entry -> Rect.t [@@js.get]
+  val target: entry -> Element.t [@@js.get]
+
+  val create: (entry list -> unit) -> t [@@js.new "ResizeObserver"]
+  val observe: t -> Element.t -> unit [@@js.call]
+  val unobserve: t -> Element.t -> unit [@@js.call]
+  val disconnect: t -> unit [@@js.call]
+end
+
+module IntersectionObserver : sig
+  type t
+  val t_of_js: Ojs.t -> t
+  val t_to_js: t -> Ojs.t
+
+  type entry
+  val entry_of_js: Ojs.t -> entry
+  val entry_to_js: entry -> Ojs.t
+
+  type intersection_rect = Rect.t
+  val intersection_rect_of_js: Ojs.t -> intersection_rect
+  val intersection_rect_to_js: intersection_rect -> Ojs.t
+
+  val bounding_client_rect: entry -> Rect.t [@@js.get]
+  val intersection_rect: entry -> intersection_rect [@@js.get]
+  val is_intersecting: entry -> bool [@@js.get]
+  val intersection_ratio: entry -> float [@@js.get]
+  val target: entry -> Element.t [@@js.get]
+
+  type options
+  val options:
+    ?root:Element.t ->
+    ?root_margin:string ->
+    ?threshold:float array ->
+    unit ->
+    options [@@js.builder]
+
+  val create: ?options:options -> (entry list -> unit) -> t [@@js.new "IntersectionObserver"]
+  val observe: t -> Element.t -> unit [@@js.call]
+  val unobserve: t -> Element.t -> unit [@@js.call]
+  val disconnect: t -> unit [@@js.call]
 end

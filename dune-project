@@ -4,7 +4,7 @@
 
 (generate_opam_files true)
 
-(version 0.3)
+(version 0.4)
 
 (maintainers "Alain Frisch <alain.frisch@lexifi.com>")
 
@@ -25,8 +25,8 @@
 - An implementation of the Elm architecture, where the UI is specified as a functional \"view\" on the current state.")
  (license MIT)
  (depends
-  (ocaml (>= 4.10))
+  (ocaml (>= 4.13))
   (gen_js_api (>= 1.0.7))
   ojs
-  js_of_ocaml-compiler)
+  (js_of_ocaml-compiler (>= 4.0.0)))
  (conflicts (ocaml-vdom (<> transition))))

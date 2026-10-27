@@ -1,6 +1,6 @@
 (* This file is part of the ocaml-vdom package, released under the terms of an MIT-like license.     *)
 (* See the attached LICENSE file.                                                                    *)
-(* Copyright (C) 2000-2024 LexiFi                                                                    *)
+(* Copyright (C) 2000-2025 LexiFi                                                                    *)
 
 
 
@@ -49,9 +49,16 @@ module Cmd: sig
   val bind: 'a t -> ('a -> 'msg t) -> 'msg t
 end
 
-(* {2 Decoders}*)
+(** {2 Decoders} *)
 
 type js_object = .. (* forward declaration in Vdom_blit, to avoid depending to DOM API here *)
+
+
+type mouse_event = {x: float; y: float; page_x: float; page_y: float; element_x: float Lazy.t; element_y: float Lazy.t; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
+
+type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
+
+type paste_event = {text: string; selection_start: int; selection_end: int}
 
 module Decoder: sig
 
@@ -141,6 +148,12 @@ module Decoder: sig
 
   val ( and+ ): 'a t -> 'b t -> ('a * 'b) t
 
+  val mouse_event: mouse_event t
+
+  val key_event: key_event t
+
+  val paste_event: paste_event t
+
 end
 
 
@@ -153,12 +166,6 @@ end
 
 
 (** {2 Properties and event handlers} *)
-
-type mouse_event = {x: float; y: float; page_x: float; page_y: float; element_x: float Lazy.t; element_y: float Lazy.t; buttons: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
-
-type key_event = {which: int; alt_key: bool; ctrl_key: bool; shift_key: bool}
-
-type paste_event = {text: string; selection_start: int; selection_end: int}
 
 type 'msg msg_options = {msg: 'msg option; stop_propagation: bool; prevent_default: bool}
 
@@ -201,7 +208,7 @@ val oninput: ?prevent_default:unit -> ?stop_propagation:unit -> (string -> 'msg)
 (** Pass the [value] property of the event target. *)
 
 val onchange_checked: ?prevent_default:unit -> ?stop_propagation:unit -> (bool -> 'msg) -> 'msg attribute
-(** Pass the [checked] property of the event targer. *)
+(** Pass the [checked] property of the event target. *)
 
 val onchange: ?prevent_default:unit -> ?stop_propagation:unit -> (string -> 'msg) -> 'msg attribute
 (** Pass the [value] property of the event target. *)
@@ -254,10 +261,19 @@ val add_class: string -> 'msg attribute list -> 'msg attribute list
 (** Pseudo-attributes are interpreted in a special way
     by the infrastructure. *)
 
-val scroll_to_show: align_top:bool -> 'msg attribute
-(** When this pseudo-attribute is first applied to an element, its
-    parent is automatically scrolled (vertically) to show the
-    element. *)
+type scroll_behavior = Auto | Instant | Smooth
+
+type scroll_alignment = Start | Center | End | Nearest
+
+val scroll_to_show:
+  ?behavior:scroll_behavior -> ?block:scroll_alignment -> ?inline:scroll_alignment ->
+  unit -> 'msg attribute
+(** When this pseudo-attribute is first applied to an element, if the element
+    is not visible in its scrollable container (or in the viewport), its
+    ancestors are scrolled to show it, as done by the browser's
+    [scrollIntoView] with the given options.  Omitted options take the
+    browser's defaults ([block = Start], [inline = Nearest]); [~block:Nearest]
+    scrolls by the minimal amount needed. *)
 
 val autofocus: 'msg attribute
 (** When this pseudo-attribute is first applied to an element, the

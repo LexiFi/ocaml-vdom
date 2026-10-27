@@ -1,10 +1,35 @@
-Next release
-============
+0.4
+===
 
 - Synchronization algorithm purely based on the VDOM, avoid reading from the real DOM
 - `Vdom.autofocus_prevent_scroll`
 - `Vdom.onauxclick_cancel`
 - `Js_browser`: expose more of the DOM API
+- `scroll_to_show`: check visibility against the nearest scrollable ancestor
+  (instead of the window) and honour `scroll-margin-top`/`scroll-margin-bottom`
+- `Vdom.Decoder.mouse_event`, `key_event`, `paste_event`
+- `Vdom_blit.extract_js_object`, `on_js_event`, `on_js_event_with_options`,
+  `Custom.focus_event`
+- Decoders: dotted field paths now also work for `extra_fields`
+- `Js_browser.Promise`: richer API (`return`, `bind`, `map`, `all`, `catch`,
+  binding operators...); error handlers now receive an `exn` (breaking)
+- `Js_browser.FileReader.result` now returns `Ojs.t`, `read_as_binary_string`
+  replaced by `read_as_array_buffer` (breaking)
+- `Vdom.scroll_to_show`: takes optional `?behavior`, `?block` and `?inline`
+  arguments (as the browser's `scrollIntoView`) instead of `~align_top`
+  (`~align_top:false` becomes `~block:End`); `~block:Nearest` scrolls by the
+  minimal amount needed (#60) (breaking)
+- `Js_browser.Element.scroll_into_view`: takes an optional `?options` argument
+  instead of a boolean (`true` becomes `()`, `false` becomes
+  `~options:(scroll_into_view_options ~block:End ()) ()`); the options are
+  built with `scroll_into_view_options ?behavior ?block ?inline ()`, which
+  replaces both the record of that name and the function
+  `scroll_into_view_options` that took it (breaking)
+- `Js_browser`: new bindings (`Intl`, `Selection`, `URLSearchParams`,
+  `Notification`, `ResizeObserver`, `IntersectionObserver`, clipboard, ...)
+- Requires OCaml >= 4.13 and js_of_ocaml-compiler >= 4.0.0
+
+Warning: this version is not fully retro-compatible with the previous one. Existing code should be adapted slightly (see the entries marked "breaking").
 
 
 0.3
