@@ -20,9 +20,11 @@
   (`~align_top:false` becomes `~block:End`); `~block:Nearest` scrolls by the
   minimal amount needed (#60) (breaking)
 - `Js_browser.Element.scroll_into_view`: takes an optional `?options` argument
-  (built with `scroll_into_view_options`, which supports `block` and `inline`)
-  instead of a boolean (`false` becomes `~block:End`); the former
-  `scroll_into_view_options` record passed absent options as `null` (breaking)
+  instead of a boolean (`true` becomes `()`, `false` becomes
+  `~options:(scroll_into_view_options ~block:End ()) ()`); the options are
+  built with `scroll_into_view_options ?behavior ?block ?inline ()`, which
+  replaces both the record of that name and the function
+  `scroll_into_view_options` that took it (breaking)
 - `Js_browser`: new bindings (`Intl`, `Selection`, `URLSearchParams`,
   `Notification`, `ResizeObserver`, `IntersectionObserver`, clipboard, ...)
 - Requires OCaml >= 4.13 and js_of_ocaml-compiler >= 4.0.0
